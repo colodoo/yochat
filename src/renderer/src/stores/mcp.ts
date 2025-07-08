@@ -7,9 +7,11 @@ export interface McpService {
   type: string
   command?: string
   args?: string
+  env?: string
   request_url?: string
   request_headers?: string
   config?: string
+  status?: string
 }
 
 export const useMcpStore = defineStore('mcp', () => {
@@ -85,22 +87,22 @@ export const useMcpStore = defineStore('mcp', () => {
     }
   }
   
-  // 验证MCP服务
-  async function validateMcpService(serviceData: Partial<McpService>) {
+  // 测试MCP服务连接
+  async function testMcpServiceConnection(serviceId: string) {
     try {
-      return await window.api.mcp.validate(serviceData)
+      return await window.api.invoke('mcp-test-connection', serviceId)
     } catch (error) {
-      console.error('验证MCP服务失败:', error)
+      console.error('测试MCP服务连接失败:', error)
       throw error
     }
   }
   
-  // 调用MCP服务
-  async function callMcpService(serviceId: string, method: string, params?: any) {
+  // 更新MCP服务状态
+  async function updateMcpServiceStatus(serviceId: string, status: string) {
     try {
-      return await window.api.mcp.call(serviceId, method, params)
+      return await window.api.invoke('mcp-update-status', serviceId, status)
     } catch (error) {
-      console.error(`调用MCP服务 ${serviceId} 失败:`, error)
+      console.error('更新MCP服务状态失败:', error)
       throw error
     }
   }
@@ -154,8 +156,8 @@ export const useMcpStore = defineStore('mcp', () => {
     updateMcpService,
     deleteMcpService,
     importMcpService,
-    validateMcpService,
-    callMcpService,
+    testMcpServiceConnection,
+    updateMcpServiceStatus,
     checkMcpServiceHealth,
     cleanupUnhealthyMcpClients,
     resetMcpClientPool,

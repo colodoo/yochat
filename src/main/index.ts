@@ -80,9 +80,10 @@ function createMiniWindow(): void {
 
   // 加载URL或文件
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    miniWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#/mini`)
+    appLogger.info(process.env['ELECTRON_RENDERER_URL'])
+    miniWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/mini.html`)
   } else {
-    miniWindow.loadFile(join(__dirname, '../renderer/index.html'), { hash: 'mini' })
+    miniWindow.loadFile(join(__dirname, '../renderer/mini.html'))
   }
 
   // 窗口关闭时清除引用

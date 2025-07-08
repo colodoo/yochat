@@ -46,6 +46,9 @@ const streamingResponse = ref('')
 const isStreaming = ref(false)
 const currentStreamingMessageId = ref<string | null>(null)
 
+// 工具调用tab状态管理
+const toolTabStates = ref<Record<string, string>>({})
+
 
 // 计算属性
 const conversationId = computed(() => Number(route.params.id))
@@ -129,10 +132,23 @@ onMounted(async () => {
     
     const text = data.text || data; // 兼容旧格式
     
-    // Agent状态信息现在直接显示在对话中，不需要特殊处理
-    
+    // 更新流式响应内容
     streamingResponse.value = text
-    nextTick(() => scrollToBottom())
+    
+    // 立即更新临时消息内容以实现实时显示
+    if (currentStreamingMessageId.value && isStreaming.value) {
+      const tempMessageIndex = conversationStore.messages.findIndex(
+        msg => msg.id.toString() === currentStreamingMessageId.value
+      )
+      if (tempMessageIndex !== -1) {
+        conversationStore.messages[tempMessageIndex].content = text
+      }
+    }
+    
+    // 平滑滚动到底部
+    nextTick(() => {
+      scrollToBottom()
+    })
   })
   
   // 注册流式响应完成事件
@@ -166,6 +182,34 @@ onMounted(async () => {
     scrollToBottom()
   })
   
+  // 监听流式响应取消事件
+  const removeCancelledListener = window.api.ai.onStreamCancelled((data) => {
+    // 检查是否是当前对话的事件
+    if (data && data.conversationId && data.conversationId !== conversationId.value) {
+      return; // 不是当前对话的事件，忽略
+    }
+    
+    // 流式响应被取消，清理状态
+    if (isStreaming.value) {
+      // 移除临时消息
+      if (currentStreamingMessageId.value) {
+        const tempMessageIndex = conversationStore.messages.findIndex(
+          msg => msg.id.toString() === currentStreamingMessageId.value
+        )
+        if (tempMessageIndex !== -1) {
+          conversationStore.messages.splice(tempMessageIndex, 1)
+        }
+      }
+      
+      streamingResponse.value = ''
+    }
+    isStreaming.value = false
+    sending.value = false
+    currentStreamingMessageId.value = null
+    
+    showSnackbar('生成已取消', 'info')
+  })
+  
   // 注册MCP调用事件监听器
   const removeMcpProgressListener = window.api.mcp.onCallProgress((data) => {
     mcpCallProgress.value = data
@@ -184,6 +228,7 @@ onMounted(async () => {
   return () => {
     removeStreamListener()
     removeDoneListener()
+    removeCancelledListener()
     removeMcpProgressListener()
     removeMcpErrorListener()
   }
@@ -294,20 +339,15 @@ async function sendMessage() {
       const tempMessage = {
         id: 'temp-' + Date.now(),
         role: 'assistant',
-        content: '',
+        content: '🤔 **正在思考...**',
         created_at: new Date().toISOString()
       }
       conversationStore.messages.push(tempMessage)
       currentStreamingMessageId.value = tempMessage.id.toString()
       
-      // 设置流式响应监听器更新临时消息
-      const updateInterval = setInterval(() => {
-        if (streamingResponse.value && isStreaming.value) {
-          conversationStore.updateMessage(tempMessage.id, streamingResponse.value)
-        } else if (!isStreaming.value) {
-          clearInterval(updateInterval)
-        }
-      }, 100) // 每100ms更新一次UI
+      // 滚动到底部显示新消息
+      await nextTick()
+      scrollToBottom()
       
       // 获取不包含临时消息的历史记录用于API调用
       // 临时消息不应该被发送到API
@@ -328,6 +368,7 @@ async function sendMessage() {
               type: service.type,
               command: service.command,
               args: service.args,
+              env: service.env,
               request_url: service.request_url,
               request_headers: service.request_headers
             }))
@@ -343,9 +384,8 @@ async function sendMessage() {
         selectedServices
       )
       
-      // 清除更新间隔
-      clearInterval(updateInterval)
-      currentStreamingMessageId.value = null
+      // API调用完成，流式响应将通过事件监听器处理
+      // currentStreamingMessageId将在onStreamDone事件中重置
       
       // 注意：不再清空已选择的MCP服务，让它们在对话中持续有效
     } catch (apiError) {
@@ -478,12 +518,37 @@ function deleteMessage(messageId: number) {
 }
 
 // 强制停止对话生成
-function stopGeneration() {
-  if (isStreaming.value && currentStreamingMessageId.value) {
-    isStreaming.value = false
-    sending.value = false
-    // 添加一个系统消息，表示对话被用户中断
-    conversationStore.addMessage('system', '对话生成已被用户中断')
+async function stopGeneration() {
+  if (isStreaming.value) {
+    try {
+      // 通知后端停止生成
+      await window.api.ai.stopGeneration(conversationId.value)
+      
+      // 更新前端状态
+      isStreaming.value = false
+      sending.value = false
+      
+      // 移除临时消息
+      if (currentStreamingMessageId.value) {
+        const tempMessageIndex = conversationStore.messages.findIndex(
+          msg => msg.id.toString() === currentStreamingMessageId.value
+        )
+        if (tempMessageIndex !== -1) {
+          conversationStore.messages.splice(tempMessageIndex, 1)
+        }
+      }
+      
+      // 添加一个系统消息，表示对话被用户中断
+      await conversationStore.addMessage('system', '⏹️ 对话生成已被用户中断')
+      
+      currentStreamingMessageId.value = null
+      streamingResponse.value = ''
+      
+      showSnackbar('已停止生成', 'info')
+    } catch (error) {
+      console.error('停止生成失败:', error)
+      showSnackbar('停止生成失败', 'error')
+    }
   }
 }
 
@@ -628,6 +693,22 @@ async function saveMessageAsMarkdown(message: any) {
     console.error('保存文件失败:', error)
   }
 }
+
+// 初始化工具tab状态
+function initToolTabState(messageId: string | number) {
+  const key = messageId.toString()
+  if (!toolTabStates.value[key]) {
+    // 默认显示调用参数tab，如果没有调用参数则显示结果tab
+    const message = conversationStore.messages.find(m => m.id.toString() === key)
+    if (message?.tool_calls && message.tool_calls.length > 0) {
+      toolTabStates.value[key] = 'calls'
+    } else if (message?.tool_results && message.tool_results.length > 0) {
+      toolTabStates.value[key] = 'results'
+    } else {
+      toolTabStates.value[key] = 'calls'
+    }
+  }
+}
 </script>
 
 <template>
@@ -732,41 +813,83 @@ async function saveMessageAsMarkdown(message: any) {
                 <span class="message-time">{{ new Date(message.created_at).toLocaleString() }}</span>
               </div>
             </div>
-            <!-- 工具调用展示 -->
-            <div v-if="message.tool_calls && message.tool_calls.length > 0" class="tool-calls-container mt-3">
+            <!-- 工具调用和结果展示 -->
+            <div v-if="(message.tool_calls && message.tool_calls.length > 0) || (message.tool_results && message.tool_results.length > 0)" class="tool-calls-container mt-3">
               <v-expansion-panels variant="accordion" class="tool-expansion-panels">
                 <v-expansion-panel>
                   <v-expansion-panel-title class="text-subtitle-2 py-2">
                     <v-icon size="small" class="mr-2">mdi-tools</v-icon>
-                    工具调用 ({{ message.tool_calls.length }})
+                    工具调用信息
+                    <v-chip v-if="message.tool_calls" size="x-small" color="primary" variant="tonal" class="ml-2">
+                      {{ message.tool_calls.length }} 个调用
+                    </v-chip>
+                    <v-chip v-if="message.tool_results" size="x-small" color="success" variant="tonal" class="ml-2">
+                      {{ message.tool_results.length }} 个结果
+                    </v-chip>
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
-                    <div v-for="(toolCall, index) in message.tool_calls" :key="index" class="tool-call-item mb-3">
-                      <div class="d-flex align-center mb-2">
-                        <v-chip size="small" color="primary" variant="tonal" class="mr-2">
-                          {{ toolCall.function.name }}
-                        </v-chip>
-                        <v-chip size="x-small" color="secondary" variant="outlined">
-                          {{ toolCall.id }}
-                        </v-chip>
-                      </div>
-                      <div v-if="toolCall.function.arguments" class="tool-arguments">
-                        <div class="text-caption text-medium-emphasis mb-1">参数:</div>
-                        <v-card variant="outlined" class="pa-2">
-                          <pre class="text-caption">{{ 
-                            typeof toolCall.function.arguments === 'string' 
-                              ? JSON.stringify(JSON.parse(toolCall.function.arguments), null, 2)
-                              : JSON.stringify(toolCall.function.arguments, null, 2)
-                          }}</pre>
-                        </v-card>
-                      </div>
-                    </div>
+                    <v-tabs v-model="toolTabStates[message.id.toString()]" class="tool-tabs">
+                      <v-tab v-if="message.tool_calls && message.tool_calls.length > 0" value="calls">
+                        <v-icon size="small" class="mr-1">mdi-function</v-icon>
+                        调用参数
+                      </v-tab>
+                      <v-tab v-if="message.tool_results && message.tool_results.length > 0" value="results">
+                        <v-icon size="small" class="mr-1">mdi-check-circle</v-icon>
+                        执行结果
+                      </v-tab>
+                    </v-tabs>
+                    
+                    <v-tabs-window v-model="toolTabStates[message.id.toString()]" class="mt-3">
+                      <!-- 工具调用参数 -->
+                      <v-tabs-window-item v-if="message.tool_calls && message.tool_calls.length > 0" value="calls">
+                        <div v-for="(toolCall, index) in message.tool_calls" :key="index" class="tool-call-item mb-3">
+                          <div class="d-flex align-center mb-2">
+                            <v-chip size="small" color="primary" variant="tonal" class="mr-2">
+                              {{ toolCall.function.name }}
+                            </v-chip>
+                            <v-chip size="x-small" color="secondary" variant="outlined">
+                              {{ toolCall.id }}
+                            </v-chip>
+                          </div>
+                          <div v-if="toolCall.function.arguments" class="tool-arguments">
+                            <div class="text-caption text-medium-emphasis mb-1">参数:</div>
+                            <v-card variant="outlined" class="pa-2">
+                              <pre class="text-caption">{{ 
+                                typeof toolCall.function.arguments === 'string' 
+                                  ? JSON.stringify(JSON.parse(toolCall.function.arguments), null, 2)
+                                  : JSON.stringify(toolCall.function.arguments, null, 2)
+                              }}</pre>
+                            </v-card>
+                          </div>
+                        </div>
+                      </v-tabs-window-item>
+                      
+                      <!-- 工具执行结果 -->
+                      <v-tabs-window-item v-if="message.tool_results && message.tool_results.length > 0" value="results">
+                        <div v-for="(toolResult, index) in message.tool_results" :key="index" class="tool-result-item mb-3">
+                          <div class="d-flex align-center mb-2">
+                            <v-chip size="small" color="success" variant="tonal" class="mr-2">
+                              结果 {{ index + 1 }}
+                            </v-chip>
+                            <v-chip v-if="toolResult.tool_call_id" size="x-small" color="secondary" variant="outlined">
+                              {{ toolResult.tool_call_id }}
+                            </v-chip>
+                          </div>
+                          <div class="tool-result-content">
+                            <div class="text-caption text-medium-emphasis mb-1">输出:</div>
+                            <v-card variant="outlined" class="pa-2">
+                              <pre class="text-caption">{{ toolResult.content }}</pre>
+                            </v-card>
+                          </div>
+                        </div>
+                      </v-tabs-window-item>
+                    </v-tabs-window>
                   </v-expansion-panel-text>
                 </v-expansion-panel>
               </v-expansion-panels>
             </div>
             
-            <!-- 工具调用结果展示 -->
+            <!-- 工具调用结果展示（兼容旧格式） -->
             <div v-if="message.role === 'tool'" class="tool-result-container mt-3">
               <v-expansion-panels variant="accordion" class="tool-expansion-panels">
                 <v-expansion-panel>
@@ -1438,6 +1561,88 @@ async function saveMessageAsMarkdown(message: any) {
   font-size: 0.75rem;
   line-height: 1.4;
   margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* 新的工具调用tab样式 */
+.tool-tabs-container {
+  margin-top: 8px;
+  border: 1px solid rgba(var(--v-theme-primary), 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tool-tabs-header {
+  background-color: rgba(var(--v-theme-primary), 0.05);
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(var(--v-theme-primary), 0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tool-tabs-content {
+  padding: 12px;
+}
+
+.tool-call-detail {
+  margin-bottom: 16px;
+}
+
+.tool-call-detail:last-child {
+  margin-bottom: 0;
+}
+
+.tool-call-name {
+  font-weight: 600;
+  color: rgba(var(--v-theme-primary));
+  margin-bottom: 8px;
+}
+
+.tool-call-id {
+  font-size: 0.75rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-bottom: 8px;
+}
+
+.tool-call-args {
+  background-color: rgba(var(--v-theme-surface-variant), 0.3);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tool-result-detail {
+  margin-bottom: 16px;
+}
+
+.tool-result-detail:last-child {
+  margin-bottom: 0;
+}
+
+.tool-result-id {
+  font-size: 0.75rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-bottom: 8px;
+}
+
+.tool-result-content {
+  background-color: rgba(var(--v-theme-success), 0.1);
+  border: 1px solid rgba(var(--v-theme-success), 0.3);
+  border-radius: 4px;
+  padding: 8px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 300px;

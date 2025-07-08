@@ -48,7 +48,6 @@ const api = {
     update: (id: string, service: any) => ipcRenderer.invoke('update-mcp-service', id, service),
     delete: (id: string) => ipcRenderer.invoke('delete-mcp-service', id),
     import: (jsonConfig: string) => ipcRenderer.invoke('import-mcp-service', jsonConfig),
-    validate: (service: any) => ipcRenderer.invoke('validate-mcp-service', service),
     call: (serviceId: string, method: string, params?: any) => ipcRenderer.invoke('call-mcp-service', serviceId, method, params),
     onCallProgress: (callback: (data: any) => void) => {
       const listener = (_: any, data: any) => callback(data);
@@ -78,6 +77,8 @@ const api = {
   ai: {
     callApi: (assistantId: string, messages: any[], conversationId?: number, temperature?: number, maxTokens?: number, mcpServices?: any[]) => 
       ipcRenderer.invoke('call-api', assistantId, messages, conversationId, temperature, maxTokens, mcpServices),
+    stopGeneration: (conversationId: number) => 
+      ipcRenderer.invoke('stop-generation', conversationId),
     onStreamResponse: (callback: (data: any) => void) => {
       const listener = (_: any, data: any) => callback(data);
       ipcRenderer.on('api-stream-response', listener);
@@ -87,6 +88,11 @@ const api = {
       const listener = (_: any, data: any) => callback(data);
       ipcRenderer.on('api-stream-done', listener);
       return () => ipcRenderer.removeListener('api-stream-done', listener);
+    },
+    onStreamCancelled: (callback: (data: any) => void) => {
+      const listener = (_: any, data: any) => callback(data);
+      ipcRenderer.on('api-stream-cancelled', listener);
+      return () => ipcRenderer.removeListener('api-stream-cancelled', listener);
     }
   },
   

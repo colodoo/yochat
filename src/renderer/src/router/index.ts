@@ -34,11 +34,6 @@ const routes = [
     ]
   },
   {
-    path: '/mini',
-    name: 'Mini',
-    component: () => import('../views/MiniChat.vue')
-  },
-  {
     path: '/:pathMatch(.*)*',
     redirect: '/'
   }

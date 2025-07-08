@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { join } from 'path';
 import Database from 'better-sqlite3';
 import fs from 'fs';
+import { SqliteSaver } from '@langchain/langgraph-checkpoint-sqlite';
 
 // 数据库文件路径
 const userDataPath = app.getPath('userData');
@@ -81,13 +82,30 @@ function initDatabase() {
       type TEXT NOT NULL,
       command TEXT,
       args TEXT,
+      env TEXT,
       request_url TEXT,
       request_headers TEXT,
       config TEXT,
+      status TEXT DEFAULT 'unknown',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  
+  // 检查是否需要添加env和status字段到mcp_services表
+  const mcpServicesTableInfo = db.prepare("PRAGMA table_info(mcp_services)").all();
+  const hasEnv = mcpServicesTableInfo.some(column => column.name === 'env');
+  const hasStatus = mcpServicesTableInfo.some(column => column.name === 'status');
+  
+  if (!hasEnv) {
+    console.log('正在添加env列到mcp_services表...');
+    db.exec('ALTER TABLE mcp_services ADD COLUMN env TEXT;');
+  }
+  
+  if (!hasStatus) {
+    console.log('正在添加status列到mcp_services表...');
+    db.exec('ALTER TABLE mcp_services ADD COLUMN status TEXT DEFAULT "unknown";');
+  }
   
   // 检查是否需要添加temperature和max_tokens列到conversations表
   const conversationsTableInfo = db.prepare("PRAGMA table_info(conversations)").all();
@@ -165,4 +183,8 @@ function initDatabase() {
 // 初始化数据库
 initDatabase();
 
+// 创建checkpointer实例
+const checkpointer = SqliteSaver.fromConnString(dbPath);
+
 export default db;
+export { checkpointer, dbPath };

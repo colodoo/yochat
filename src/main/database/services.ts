@@ -362,9 +362,11 @@ export const mcpService = {
     type: string;
     command?: string;
     args?: string;
+    env?: string;
     request_url?: string;
     request_headers?: string;
     config?: string;
+    status?: string;
   }) => {
     const id = uuidv4();
     const {
@@ -372,16 +374,16 @@ export const mcpService = {
       type,
       command = '',
       args = '',
+      env = '',
       request_url = '',
       request_headers = '',
-      config = '{}'
+      config = '{}',
+      status = 'unknown'
     } = service;
 
-
-
     db.prepare(
-      'INSERT INTO mcp_services (id, name, type, command, args, request_url, request_headers, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(id, name, type, command, args, request_url, request_headers, config);
+      'INSERT INTO mcp_services (id, name, type, command, args, env, request_url, request_headers, config, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, name, type, command, args, env, request_url, request_headers, config, status);
 
     return id;
   },
@@ -392,9 +394,11 @@ export const mcpService = {
     type?: string;
     command?: string;
     args?: string;
+    env?: string;
     request_url?: string;
     request_headers?: string;
     config?: string;
+    status?: string;
   }) => {
     const existingService = db.prepare('SELECT * FROM mcp_services WHERE id = ?').get(id);
     if (!existingService) {
@@ -405,16 +409,18 @@ export const mcpService = {
 
     return db
       .prepare(
-        'UPDATE mcp_services SET name = ?, type = ?, command = ?, args = ?, request_url = ?, request_headers = ?, config = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        'UPDATE mcp_services SET name = ?, type = ?, command = ?, args = ?, env = ?, request_url = ?, request_headers = ?, config = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
       )
       .run(
         updatedService.name,
         updatedService.type,
         updatedService.command,
         updatedService.args,
+        updatedService.env,
         updatedService.request_url,
         updatedService.request_headers,
         updatedService.config,
+        updatedService.status,
         id
       );
   },
@@ -427,10 +433,15 @@ export const mcpService = {
   // 通过JSON配置导入MCP服务
   importMcpServiceFromJson: (jsonConfig: string) => {
     try {
+      // 验证JSON格式
+      if (!jsonConfig || typeof jsonConfig !== 'string') {
+        throw new Error('无效的JSON配置：配置不能为空');
+      }
+      
       const config = JSON.parse(jsonConfig);
       
       // 处理Model Context Protocol格式
-      // 例如: { "mcpServers": { "filesystem": { "command": "npx", "args": [ "-y", "@modelcontextprotocol/server-filesystem", "/path1", "/path2" ] } } }
+      // 例如: { "mcpServers": { "filesystem": { "command": "npx", "args": [ "-y", "@modelcontextprotocol/server-filesystem", "/path1", "/path2" ], "env": { "NODE_ENV": "production" } } } }
       if (config.mcpServers) {
         const mcpServers = config.mcpServers;
         const serverName = Object.keys(mcpServers)[0]; // 获取第一个服务名称
@@ -444,14 +455,24 @@ export const mcpService = {
             argsString = serverConfig.args.join('\n');
           }
           
+          // 处理环境变量
+          let envString = '';
+          if (serverConfig.env && typeof serverConfig.env === 'object') {
+            envString = Object.entries(serverConfig.env)
+              .map(([key, value]) => `${key}=${value}`)
+              .join('\n');
+          }
+          
           return mcpService.createMcpService({
             name: serverName,
             type: 'stdio', // MCP服务默认为stdio类型
             command: serverConfig.command || '',
             args: argsString,
+            env: envString,
             request_url: '',
             request_headers: '',
-            config: jsonConfig
+            config: jsonConfig,
+            status: 'unknown'
           });
         }
       }
@@ -462,6 +483,7 @@ export const mcpService = {
         type,
         command,
         args,
+        env,
         request_url,
         request_headers
       } = config;
@@ -494,18 +516,43 @@ export const mcpService = {
         }
       }
       
+      // 处理环境变量格式转换
+      let envString = '';
+      if (env) {
+        if (typeof env === 'object' && !Array.isArray(env)) {
+          // 如果是对象，转换为KEY=VALUE格式的换行分隔字符串
+          envString = Object.entries(env)
+            .map(([key, value]) => `${key}=${value}`)
+            .join('\n');
+        } else if (typeof env === 'string') {
+          // 如果已经是字符串，直接使用
+          envString = env;
+        } else if (Array.isArray(env)) {
+          // 如果是数组，假设每个元素都是KEY=VALUE格式
+          envString = env.join('\n');
+        }
+      }
+      
       return mcpService.createMcpService({
         name,
         type,
         command: command || '',
         args: argsString,
+        env: envString,
         request_url: request_url || '',
         request_headers: request_headers ? JSON.stringify(request_headers) : '',
-        config: jsonConfig
+        config: jsonConfig,
+        status: 'unknown'
       });
     } catch (error) {
       console.error('导入MCP服务配置失败:', error);
       throw error;
     }
+  },
+  
+  // 更新MCP服务状态
+  updateMcpServiceStatus: (id: string, status: string) => {
+    return db.prepare('UPDATE mcp_services SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+      .run(status, id);
   }
 };
