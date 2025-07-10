@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import { useModelStore } from '../stores/model'
 import { useSettingStore } from '../stores/setting'
 
@@ -8,6 +8,9 @@ const settingStore = useSettingStore()
 
 // 默认模型ID
 const defaultModelId = ref('')
+
+// 选中的模型类型
+const selectedModelType = ref('openai')
 
 // 状态变量
 const dialog = ref(false)
@@ -77,13 +80,23 @@ watch(() => form.value.model_type, (newType) => {
 
 // 模型类型选项
 const modelTypes = [
-  { value: 'openai', title: 'OpenAI' },
-  { value: 'azure', title: 'Azure OpenAI' },
-  { value: 'anthropic', title: 'Anthropic Claude' },
-  { value: 'gemini', title: 'Google Gemini' },
-  { value: 'ollama', title: 'Ollama' },
-  { value: 'custom', title: '自定义' }
+  { value: 'openai', title: 'OpenAI', icon: 'mdi-robot', color: 'green' },
+  { value: 'azure', title: 'Azure OpenAI', icon: 'mdi-microsoft-azure', color: 'blue' },
+  { value: 'anthropic', title: 'Anthropic Claude', icon: 'mdi-brain', color: 'orange' },
+  { value: 'gemini', title: 'Google Gemini', icon: 'mdi-google', color: 'red' },
+  { value: 'ollama', title: 'Ollama', icon: 'mdi-llama', color: 'purple' },
+  { value: 'custom', title: '自定义', icon: 'mdi-cog', color: 'grey' }
 ]
+
+// 根据选中的模型类型过滤模型
+const filteredModels = computed(() => {
+  return modelStore.models.filter(model => model.model_type === selectedModelType.value)
+})
+
+// 获取选中模型类型的信息
+const selectedModelTypeInfo = computed(() => {
+  return modelTypes.find(type => type.value === selectedModelType.value) || modelTypes[0]
+})
 
 // 初始化数据
 onMounted(async () => {
@@ -111,6 +124,14 @@ async function loadModels() {
 function openCreateDialog() {
   editMode.value = false
   resetForm()
+  // 设置为当前选中的模型类型
+  form.value.model_type = selectedModelType.value
+  // 应用默认配置
+  const defaults = modelTypeDefaults[selectedModelType.value]
+  if (defaults) {
+    form.value.api_url = defaults.api_url
+    form.value.model_name = defaults.model_name
+  }
   dialog.value = true
   
   // 在下一个事件循环中聚焦到名称输入框
@@ -258,7 +279,8 @@ async function deleteModel() {
 
 <template>
   <div class="models-container">
-    <v-card flat>
+    <!-- 顶部标题栏 -->
+    <v-card flat class="mb-4">
       <v-card-title class="d-flex align-center">
         <span class="text-h5">模型管理</span>
         <v-tooltip text="默认模型将在创建新对话时自动选择">
@@ -283,101 +305,140 @@ async function deleteModel() {
             </v-chip>
           </template>
         </v-tooltip>
-        <v-spacer></v-spacer>
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
-          新建模型
-        </v-btn>
       </v-card-title>
-      
-      <v-card-text>
-        <!-- 加载状态 -->
-        <v-overlay
-          :model-value="loading"
-          class="align-center justify-center"
-          persistent
-        >
-          <v-progress-circular
-            indeterminate
-            color="primary"
-          ></v-progress-circular>
-        </v-overlay>
-        
-        <v-container>
-          <!-- 模型列表 -->
-          <v-row v-if="modelStore.models.length > 0">
-            <v-col 
-              v-for="model in modelStore.models" 
-              :key="model.id"
-              cols="12" sm="6" md="4"
+    </v-card>
+
+    <!-- 主要内容区域 -->
+    <div class="main-content">
+      <!-- 左侧模型类型列表 -->
+      <v-card class="model-types-panel" variant="outlined">
+        <v-card-title class="d-flex align-center">
+          <v-icon class="mr-2">mdi-format-list-bulleted-type</v-icon>
+          模型类型
+        </v-card-title>
+        <v-card-text class="pa-0">
+          <v-list>
+            <v-list-item
+              v-for="modelType in modelTypes"
+              :key="modelType.value"
+              :active="selectedModelType === modelType.value"
+              @click="selectedModelType = modelType.value"
+              class="model-type-item"
             >
-              <v-card
-                variant="outlined"
-                height="100%"
-                :class="{ 'default-model': model.id === defaultModelId }"
-              >
-                <v-card-title class="d-flex align-center">
-                  <v-avatar :color="model.id === defaultModelId ? 'success' : 'primary'" class="mr-2">
-                    <v-icon>{{ model.id === defaultModelId ? 'mdi-check-circle' : 'mdi-cube-outline' }}</v-icon>
-                  </v-avatar>
-                  {{ model.name }}
-                  <v-chip
-                    v-if="model.id === defaultModelId"
-                    color="success"
-                    size="small"
-                    class="ml-2"
-                  >
-                    默认
-                  </v-chip>
-                </v-card-title>
-                
-                <v-card-text>
-                  <div class="text-caption text-grey">
-                    <div><strong>模型类型:</strong> {{ model.model_type }}</div>
-                    <div><strong>模型名称:</strong> {{ model.model_name || '未指定' }}</div>
-                    <div><strong>默认温度:</strong> {{ model.default_temperature }}</div>
-                    <div><strong>默认最大令牌:</strong> {{ model.default_max_tokens }}</div>
-                  </div>
-                </v-card-text>
-                
-                <v-card-actions>
-                  <v-btn
-                    v-if="model.id !== defaultModelId"
-                    size="small"
-                    color="success"
-                    variant="text"
-                    prepend-icon="mdi-check-circle"
-                    @click="setDefaultModel(model.id)"
-                  >
-                    设为默认
-                  </v-btn>
-                  <v-spacer></v-spacer>
-                  <v-btn icon @click="openEditDialog(model)">
-                    <v-icon>mdi-pencil</v-icon>
-                  </v-btn>
-                  <v-btn icon @click="openDeleteDialog(model.id)">
-                    <v-icon>mdi-delete</v-icon>
-                  </v-btn>
-                </v-card-actions>
-              </v-card>
-            </v-col>
-          </v-row>
+              <template v-slot:prepend>
+                <v-avatar :color="modelType.color" size="small">
+                  <v-icon :icon="modelType.icon" size="small"></v-icon>
+                </v-avatar>
+              </template>
+              <v-list-item-title>{{ modelType.title }}</v-list-item-title>
+              <template v-slot:append>
+                <v-chip
+                  size="small"
+                  :color="modelType.color"
+                  variant="outlined"
+                >
+                  {{ modelStore.models.filter(m => m.model_type === modelType.value).length }}
+                </v-chip>
+              </template>
+            </v-list-item>
+          </v-list>
+        </v-card-text>
+      </v-card>
+
+      <!-- 右侧模型列表 -->
+      <v-card class="models-panel" variant="outlined">
+        <v-card-title class="d-flex align-center">
+          <v-avatar :color="selectedModelTypeInfo.color" size="small" class="mr-2">
+            <v-icon :icon="selectedModelTypeInfo.icon" size="small"></v-icon>
+          </v-avatar>
+          {{ selectedModelTypeInfo.title }} 模型
+          <v-spacer></v-spacer>
+          <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
+            新建模型
+          </v-btn>
+        </v-card-title>
+        
+        <v-card-text>
+          <!-- 加载状态 -->
+          <v-overlay
+            :model-value="loading"
+            class="align-center justify-center"
+            persistent
+          >
+            <v-progress-circular
+              indeterminate
+              color="primary"
+            ></v-progress-circular>
+          </v-overlay>
+          
+          <!-- 模型列表 -->
+          <div v-if="filteredModels.length > 0" class="models-grid">
+            <v-card
+              v-for="model in filteredModels"
+              :key="model.id"
+              variant="outlined"
+              class="model-card"
+              :class="{ 'default-model': model.id === defaultModelId }"
+            >
+              <v-card-title class="d-flex align-center">
+                <v-avatar :color="model.id === defaultModelId ? 'success' : 'primary'" class="mr-2">
+                  <v-icon>{{ model.id === defaultModelId ? 'mdi-check-circle' : 'mdi-cube-outline' }}</v-icon>
+                </v-avatar>
+                {{ model.name }}
+                <v-chip
+                  v-if="model.id === defaultModelId"
+                  color="success"
+                  size="small"
+                  class="ml-2"
+                >
+                  默认
+                </v-chip>
+              </v-card-title>
+              
+              <v-card-text>
+                <div class="text-caption text-grey">
+                  <div><strong>模型名称:</strong> {{ model.model_name || '未指定' }}</div>
+                  <div><strong>默认温度:</strong> {{ model.default_temperature }}</div>
+                  <div><strong>默认最大令牌:</strong> {{ model.default_max_tokens }}</div>
+                </div>
+              </v-card-text>
+              
+              <v-card-actions>
+                <v-btn
+                  v-if="model.id !== defaultModelId"
+                  size="small"
+                  color="success"
+                  variant="text"
+                  prepend-icon="mdi-check-circle"
+                  @click="setDefaultModel(model.id)"
+                >
+                  设为默认
+                </v-btn>
+                <v-spacer></v-spacer>
+                <v-btn icon @click="openEditDialog(model)">
+                  <v-icon>mdi-pencil</v-icon>
+                </v-btn>
+                <v-btn icon @click="openDeleteDialog(model.id)">
+                  <v-icon>mdi-delete</v-icon>
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </div>
           
           <!-- 空状态 -->
-          <v-row v-else>
-            <v-col cols="12" class="text-center">
-              <div class="empty-state">
-                <v-icon size="64" color="grey-lighten-1">mdi-cube-outline</v-icon>
-                <p class="text-h6 mt-4">没有模型</p>
-                <p class="text-body-1 text-grey">创建一个模型以便在助手中使用</p>
-                <v-btn color="primary" class="mt-4" @click="openCreateDialog">
-                  创建模型
-                </v-btn>
-              </div>
-            </v-col>
-          </v-row>
-        </v-container>
-      </v-card-text>
-    </v-card>
+          <div v-else class="empty-state">
+            <v-avatar :color="selectedModelTypeInfo.color" size="64" class="mb-4">
+              <v-icon :icon="selectedModelTypeInfo.icon" size="32"></v-icon>
+            </v-avatar>
+            <p class="text-h6 mb-2">暂无 {{ selectedModelTypeInfo.title }} 模型</p>
+            <p class="text-body-2 text-grey mb-4">创建一个 {{ selectedModelTypeInfo.title }} 模型以便在助手中使用</p>
+            <v-btn color="primary" @click="openCreateDialog">
+              创建 {{ selectedModelTypeInfo.title }} 模型
+            </v-btn>
+          </div>
+        </v-card-text>
+      </v-card>
+    </div>
     
     <!-- 创建/编辑模型对话框 -->
     <v-dialog v-model="dialog" max-width="600px">
@@ -548,20 +609,66 @@ async function deleteModel() {
 .models-container {
   padding: 16px;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
-.models-container .v-card {
+.main-content {
+  display: flex;
+  gap: 16px;
   flex: 1;
+  overflow: hidden;
+}
+
+.model-types-panel {
+  width: 300px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
 }
 
-.models-container .v-card-text {
+.model-types-panel .v-card-text {
   flex: 1;
   overflow-y: auto;
+}
+
+.model-type-item {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.model-type-item:hover {
+  background-color: rgba(var(--v-theme-primary), 0.08);
+}
+
+.models-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.models-panel .v-card-text {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.models-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 8px 0;
+}
+
+.model-card {
+  height: fit-content;
+  transition: all 0.2s ease;
+}
+
+.model-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .empty-state {
@@ -570,10 +677,33 @@ async function deleteModel() {
   align-items: center;
   justify-content: center;
   padding: 48px 0;
+  text-align: center;
 }
 
 .default-model {
   border: 2px solid rgb(var(--v-theme-success)) !important;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 响应式设计 */
+@media (max-width: 960px) {
+  .main-content {
+    flex-direction: column;
+  }
+  
+  .model-types-panel {
+    width: 100%;
+    height: 200px;
+  }
+  
+  .models-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .models-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

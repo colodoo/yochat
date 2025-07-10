@@ -63,7 +63,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  user-select: none; /* 防止文本被选中 */
+  user-select: none;
 }
 
 /* 自定义滚动条 */

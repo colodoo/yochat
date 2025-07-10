@@ -166,7 +166,7 @@ class McpClientPool {
     // 设置空闲超时
     this.resetIdleTimeout(clientKey, service);
     
-    return clientInfo.client;
+    return clientInfo;
   }
   
   private resetIdleTimeout(clientKey: string, service: any): void {
@@ -727,10 +727,10 @@ async function checkMcpServiceHealth(service: any): Promise<boolean> {
     mcpLogger.info(`检查MCP服务健康状态: ${service.name}`);
     
     const clientInfo = await mcpClientPool.getClient(service);
-    mcpLogger.info(`获取MCP服务客户端: ${clientInfo}`);
+    // mcpLogger.info(`获取MCP服务客户端: `, clientInfo);
     const client = clientInfo.client || clientInfo;
-    const tools = await client.getTools();
-    mcpLogger.info(`MCP服务 ${service.name} 健康检查通过:`, tools)
+    mcpLogger.info(`MCP服务 ${service.name} 健康检查通过:`)
+    return client;
   } catch (error) {
     mcpLogger.warn(`MCP服务 ${service.name} 健康检查失败:`, error);
     return false;

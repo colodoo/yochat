@@ -5,6 +5,7 @@ import { useConversationStore } from '../stores/conversation'
 import { useAssistantStore } from '../stores/assistant'
 import { useSettingStore } from '../stores/setting'
 import { useModelStore } from '../stores/model'
+import logoIcon from '../assets/icon.png'
 
 const router = useRouter()
 const conversationStore = useConversationStore()
@@ -13,8 +14,7 @@ const settingStore = useSettingStore()
 const modelStore = useModelStore()
 
 // 侧边栏状态
-const drawer = ref(true)
-const rail = ref(false)
+const sidebarVisible = ref(true)
 
 // 窗口状态
 const isMaximized = ref(false)
@@ -150,7 +150,28 @@ watch(
   <v-app :theme="settingStore.getSetting('theme')">
     <!-- 自定义窗口标题栏 -->
     <div class="custom-titlebar">
+      <div class="titlebar-left">
+        <!-- 侧边栏切换按钮 -->
+        <v-btn 
+          icon 
+          size="small" 
+          variant="text" 
+          @click="sidebarVisible = !sidebarVisible"
+          class="sidebar-toggle-btn"
+        >
+          <v-icon>{{ sidebarVisible ? 'mdi-menu-open' : 'mdi-menu' }}</v-icon>
+        </v-btn>
+        
+        <!-- LOGO区域 -->
+        <div class="logo-section" v-if="!sidebarVisible">
+          <!-- <v-icon color="primary" class="mr-2">mdi-chat</v-icon> -->
+          <img class="mr-2 logo-img" :src="logoIcon" />
+          <span class="logo-text">YoChat</span>
+        </div>
+      </div>
+      
       <div class="drag-region"></div>
+      
       <div class="window-controls">
         <v-btn icon size="small" variant="text" @click="minimizeWindow">
           <v-icon>mdi-window-minimize</v-icon>
@@ -164,100 +185,101 @@ watch(
       </div>
     </div>
 
-    <!-- 侧边导航栏 -->
-    <v-navigation-drawer
-      v-model="drawer"
-      :rail="rail"
-      permanent
-      width="260"
-      @click="rail = false"
-    >
-      <!-- 收缩/展开按钮 -->
-      <template v-slot:prepend>
-        <v-list-item
-          lines="two"
-          prepend-avatar="mdi-chat"
-          title="YoChat"
-          subtitle="AI聊天助手"
-        >
-          <template v-slot:append>
-            <v-btn
-              variant="text"
-              icon="mdi-chevron-left"
-              @click.stop="rail = !rail"
-            ></v-btn>
-          </template>
-        </v-list-item>
-      </template>
-      <v-divider></v-divider>
+    <div class="app-content">
+      <!-- 自定义侧边栏 -->
+      <div v-show="sidebarVisible" class="custom-sidebar">
+        <!-- LOGO区域 -->
+        <div class="sidebar-header">
+          <div class="logo-section">
+            <!-- <v-icon color="primary" class="mr-2">mdi-chat</v-icon> -->
+            <v-img class="mr-2 logo-img" :src="logoIcon" />
+            <div class="logo-info">
+              <div class="logo-title">YoChat</div>
+            </div>
+          </div>
+        </div>
+        
+        <v-divider></v-divider>
 
-      <!-- 新建对话按钮 -->
-      <div class="pa-2">
-        <v-btn 
-          block 
-          color="primary" 
-          @click="newChatDialog = true" 
-          prepend-icon="mdi-plus" 
-          class="new-chat-btn"
-        >
-          新建对话
-        </v-btn>
+        <!-- 新建对话按钮 -->
+        <div class="pa-2">
+          <v-btn 
+            block 
+            color="primary"
+            rounded
+            @click="newChatDialog = true" 
+            prepend-icon="mdi-plus" 
+            class="new-chat-btn"
+          >
+            新建对话
+          </v-btn>
+        </div>
+
+        <v-divider></v-divider>
+
+        <!-- 对话列表标题栏 -->
+        <div class="conversation-header">
+          <span class="conversation-title">对话列表</span>
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            @click="clearAllDialog = true"
+            class="clear-all-btn"
+            title="清空所有对话"
+          >
+            <v-icon>mdi-delete-sweep</v-icon>
+          </v-btn>
+        </div>
+
+        <!-- 对话列表 -->
+        <div class="conversation-list-container">
+          <v-list density="compact" nav class="conversation-list">
+            <v-list-item
+              v-for="conversation in conversationStore.conversations"
+              :key="conversation.id"
+              :title="conversation.title"
+              :value="conversation.id"
+              :active="conversationStore.currentConversationId === conversation.id"
+              @click="selectConversation(conversation.id)"
+              prepend-icon="mdi-chat"
+              class="text-body-2"
+              lines="one"
+            ></v-list-item>
+          </v-list>
+        </div>
+
+        <!-- 底部菜单 -->
+        <div class="sidebar-footer">
+          <v-divider></v-divider>
+          <v-list>
+            <v-list-item
+              prepend-icon="mdi-brain"
+              title="模型管理"
+              @click="router.push('/models')"
+              class="sidebar-menu-item"
+            ></v-list-item>
+            <v-list-item
+              prepend-icon="mdi-robot"
+              title="助手管理"
+              @click="router.push('/assistants')"
+              class="sidebar-menu-item"
+            ></v-list-item>
+            <v-list-item
+              prepend-icon="mdi-cog"
+              title="设置"
+              @click="router.push('/settings')"
+              class="sidebar-menu-item"
+            ></v-list-item>
+          </v-list>
+        </div>
       </div>
 
-      <v-divider></v-divider>
-
-      <!-- 对话列表 -->
-      <v-list density="compact" nav class="conversation-list">
-        <v-list-item
-          v-for="conversation in conversationStore.conversations"
-          :key="conversation.id"
-          :title="conversation.title"
-          :value="conversation.id"
-          :active="conversationStore.currentConversationId === conversation.id"
-          @click="selectConversation(conversation.id)"
-          prepend-icon="mdi-chat"
-          class="text-body-2"
-          lines="one"
-        ></v-list-item>
-      </v-list>
-
-      <!-- 底部菜单 -->
-      <template v-slot:append>
-        <v-divider></v-divider>
-        <v-list>
-          <v-list-item
-            prepend-icon="mdi-delete-sweep"
-            title="清空所有对话"
-            @click="clearAllDialog = true"
-            class="sidebar-menu-item text-error"
-          ></v-list-item>
-          <v-divider class="my-2"></v-divider>
-          <v-list-item
-            prepend-icon="mdi-brain"
-            title="模型管理"
-            @click="router.push('/models')"
-            class="sidebar-menu-item"
-          ></v-list-item>
-          <v-list-item
-            prepend-icon="mdi-robot"
-            title="助手管理"
-            @click="router.push('/assistants')"
-            class="sidebar-menu-item"
-          ></v-list-item>
-          <v-list-item
-            prepend-icon="mdi-cog"
-            title="设置"
-            @click="router.push('/settings')"
-            class="sidebar-menu-item"
-          ></v-list-item>
-        </v-list>
-      </template>
-    </v-navigation-drawer>
-
-    <!-- 主内容区域 -->
-    <v-main>
-      <router-view></router-view>
-    </v-main>
+      <!-- 主内容区域 -->
+      <div class="main-content" :class="{ 'sidebar-hidden': !sidebarVisible }">
+        <router-view></router-view>
+      </div>
+    </div>
 
     <!-- 新建对话对话框 -->
     <v-dialog v-model="newChatDialog" max-width="450px">
@@ -318,21 +340,53 @@ watch(
 <style scoped>
 /* 自定义标题栏 */
 .custom-titlebar {
-  height: 32px;
+  height: 45px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   background-color: var(--v-theme-surface);
   -webkit-app-region: no-drag;
   position: relative;
   z-index: 100;
+  border-bottom: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+}
+
+.titlebar-left {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.sidebar-toggle-btn {
+  border-radius: 0;
+  height: 45px;
+  width: 45px;
+  min-width: 45px;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  height: 100%;
+}
+
+.logo-img {
+  width: 30px;
+  height: 30px;
+}
+
+.logo-text {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--v-theme-primary);
 }
 
 .drag-region {
   position: absolute;
   top: 0;
-  left: 0;
-  right: 100px; /* 为窗口控制按钮留出空间 */
+  left: 45px;
+  right: 100px;
   height: 100%;
   -webkit-app-region: drag;
 }
@@ -349,12 +403,105 @@ watch(
   min-width: 32px;
 }
 
-/* 自定义样式 */
+/* 应用内容布局 */
+.app-content {
+  display: flex;
+  height: calc(100vh - 32px);
+}
+
+/* 自定义侧边栏 */
+.custom-sidebar {
+  width: 220px;
+  background-color: var(--v-theme-surface);
+  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  min-height: 56px;
+}
+
+.logo-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-title {
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.logo-subtitle {
+  font-size: 12px;
+  opacity: 0.7;
+  line-height: 1.2;
+}
+
+.sidebar-close-btn {
+  border-radius: 4px;
+  height: 32px;
+  width: 32px;
+  min-width: 32px;
+}
+
+.conversation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background-color: rgba(var(--v-theme-on-surface), 0.02);
+}
+
+.conversation-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.clear-all-btn {
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.clear-all-btn:hover {
+  opacity: 1;
+}
+
+.conversation-list-container {
+  flex: 1;
+  overflow: hidden;
+}
+
 .conversation-list {
-  max-height: calc(100vh - 180px); /* 调整高度，为标题栏留出空间 */
+  height: 100%;
   overflow-y: auto;
 }
 
+.sidebar-footer {
+  margin-top: auto;
+}
+
+/* 主内容区域 */
+.main-content {
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.main-content.sidebar-hidden {
+  width: 100%;
+}
+
+/* 自定义样式 */
 .v-list-item-title {
   white-space: nowrap;
   overflow: hidden;
@@ -365,12 +512,6 @@ watch(
 .new-chat-btn {
   border-radius: 8px;
   font-weight: 500;
-  transition: all 0.3s ease;
-}
-
-.new-chat-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .sidebar-menu-item {
@@ -383,14 +524,10 @@ watch(
   background-color: rgba(var(--v-theme-primary), 0.1);
 }
 
-:deep(.v-navigation-drawer__content) {
-  overflow-y: hidden;
-}
-
 /* 适配小屏幕 */
 @media (max-width: 600px) {
-  .v-navigation-drawer {
-    width: 220px !important;
+  .custom-sidebar {
+    width: 220px;
   }
   
   .v-list-item-title {

@@ -915,6 +915,7 @@ function initToolTabState(messageId: string | number) {
                   :id="`preview-${message.id}`" 
                   :modelValue="message.content" 
                   :theme="settingStore.getSetting('theme', 'light')"
+                  previewTheme="github"
                 />
             </div>
             
@@ -1275,15 +1276,7 @@ function initToolTabState(messageId: string | number) {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background-color: rgba(var(--v-theme-surface-variant), 0.8);
-  color: rgba(var(--v-theme-on-surface-variant), 0.8);
   transition: all 0.2s ease-in-out;
-}
-
-.action-btn:hover {
-  background-color: rgba(var(--v-theme-primary), 0.1);
-  color: rgb(var(--v-theme-primary));
-  transform: scale(1.05);
 }
 
 .action-btn .v-icon {
@@ -1303,6 +1296,7 @@ function initToolTabState(messageId: string | number) {
   display: flex;
   flex-direction: column;
   height: 100%;
+  user-select: text;
 }
 
 .chat-header {
@@ -1361,14 +1355,13 @@ function initToolTabState(messageId: string | number) {
 }
 
 .message-content {
-  background-color: rgba(0, 0, 0, 0.03);
   border-radius: 8px;
   padding: 12px;
   overflow-wrap: break-word;
 }
 
 .message-user .message-content {
-  background-color: rgba(var(--v-theme-primary), 0.1);
+  background-color: rgba(0, 0, 0, 0.03);
 }
 
 .system-message {
@@ -1399,7 +1392,6 @@ function initToolTabState(messageId: string | number) {
 }
 
 .message-text {
-  white-space: pre-wrap;
 }
 
 .input-container {
@@ -1478,18 +1470,8 @@ function initToolTabState(messageId: string | number) {
   --md-border-active-color: rgba(255, 255, 255, 0.3);
 }
 
-/* 代码块样式优化 */
-:deep(.md-editor-preview pre) {
-  background: var(--md-bk-color-outstand) !important;
-  border: 1px solid var(--md-border-color) !important;
-  border-radius: 6px;
-}
-
-:deep(.md-editor-preview code) {
-  background: var(--md-bk-color-outstand) !important;
-  color: var(--md-color) !important;
-  padding: 2px 4px;
-  border-radius: 3px;
+:deep(.md-editor-preview .md-editor-code .md-editor-code-head) {
+  z-index: 0;
 }
 
 /* 表格样式优化 */
