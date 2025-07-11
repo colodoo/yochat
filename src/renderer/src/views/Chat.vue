@@ -980,66 +980,75 @@ function initToolTabState(messageId: string | number) {
       {{ errorMessage }}
     </v-alert>
     
-    <!-- 输入区域 -->
-    <div class="input-container">
-      <div class="input-actions">
-        <v-btn
-          icon
-          size="small"
-          variant="text"
-          @click="openMcpServicesDialog"
-          :disabled="sending || isStreaming"
-        >
-          <v-icon>mdi-tools</v-icon>
-          <v-tooltip activator="parent" location="top">选择工具</v-tooltip>
-        </v-btn>
+    <!-- 悬浮输入区域 -->
+    <div class="floating-input-container">
+      <div class="input-wrapper">
+        <!-- 工具选择提示 -->
+        <div v-if="selectedMcpServices.length > 0" class="selected-tools-chip">
+          <v-chip
+            size="small"
+            color="secondary"
+            variant="tonal"
+            closable
+            @click:close="selectedMcpServices = []"
+          >
+            <v-icon start size="small">mdi-tools</v-icon>
+            {{ selectedMcpServices.length }} 个工具
+          </v-chip>
+        </div>
         
-        <v-chip
-          v-if="selectedMcpServices.length > 0"
-          size="small"
-          color="secondary"
-          variant="tonal"
-          closable
-          @click:close="selectedMcpServices = []"
-        >
-          <v-icon start size="small">mdi-tools</v-icon>
-          {{ selectedMcpServices.length }} 个工具
-        </v-chip>
-      </div>
-      
-      <v-textarea
-        v-model="messageInput"
-        placeholder="输入消息..."
-        rows="3"
-        auto-grow
-        hide-details
-        density="compact"
-        variant="outlined"
-        @keydown.enter.exact.prevent="sendMessage"
-      ></v-textarea>
-      
-      <div class="send-actions">
-        <v-btn
-          v-if="!isStreaming"
-          color="primary"
-          icon
-          size="small"
-          class="send-button"
-          @click="sendMessage"
-          :disabled="!messageInput.trim() || sending"
-        >
-          <v-icon>mdi-send</v-icon>
-        </v-btn>
-        <v-btn
-          v-else
-          color="error"
-          icon
-          size="small"
-          class="send-button"
-          @click="stopGeneration"
-        >
-          <v-icon>mdi-stop</v-icon>
-        </v-btn>
+        <!-- 输入框容器 -->
+        <div class="input-field-container">
+          <!-- 左侧工具按钮 -->
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            class="tool-button-left"
+            @click="openMcpServicesDialog"
+            :disabled="sending || isStreaming"
+          >
+            <v-icon>mdi-tools</v-icon>
+            <v-tooltip activator="parent" location="top">选择工具</v-tooltip>
+          </v-btn>
+          
+          <!-- 输入框 -->
+          <v-textarea
+            v-model="messageInput"
+            placeholder="输入消息..."
+            rows="1"
+            auto-grow
+            max-rows="6"
+            hide-details
+            density="compact"
+            variant="outlined"
+            class="message-input"
+            @keydown.enter.exact.prevent="sendMessage"
+          ></v-textarea>
+          
+          <!-- 右侧发送按钮 -->
+          <v-btn
+            v-if="!isStreaming"
+            color="primary"
+            icon
+            size="small"
+            class="send-button-right"
+            @click="sendMessage"
+            :disabled="!messageInput.trim() || sending"
+          >
+            <v-icon>mdi-send</v-icon>
+          </v-btn>
+          <v-btn
+            v-else
+            color="error"
+            icon
+            size="small"
+            class="send-button-right"
+            @click="stopGeneration"
+          >
+            <v-icon>mdi-stop</v-icon>
+          </v-btn>
+        </div>
       </div>
     </div>
     
@@ -1231,6 +1240,16 @@ function initToolTabState(messageId: string | number) {
 </template>
 
 <style scoped>
+/* 全局防止横向滚动 */
+.chat-container,
+.chat-container * {
+  box-sizing: border-box;
+}
+
+.chat-container {
+  overflow-x: hidden;
+  max-width: 100%;
+}
 /* 工具调用展开面板样式 */
 .tool-expansion-panels {
   box-shadow: none;
@@ -1297,6 +1316,7 @@ function initToolTabState(messageId: string | number) {
   flex-direction: column;
   height: 100%;
   user-select: text;
+  position: relative; /* 为悬浮输入框提供定位上下文 */
 }
 
 .chat-header {
@@ -1314,11 +1334,14 @@ function initToolTabState(messageId: string | number) {
 .message-container {
   flex-grow: 1;
   overflow-y: auto;
+  overflow-x: hidden; /* 禁止横向滚动 */
   padding: 16px;
   display: flex;
   flex-direction: column;
   height: 0; /* 确保flex布局下正确计算高度 */
   min-height: 0; /* 确保在Firefox中也能正确滚动 */
+  width: 100%; /* 确保容器宽度不超出 */
+  box-sizing: border-box; /* 包含padding在宽度计算中 */
 }
 
 .empty-state {
@@ -1334,6 +1357,8 @@ function initToolTabState(messageId: string | number) {
   display: flex;
   margin-bottom: 16px;
   max-width: 85%;
+  width: 100%; /* 确保消息容器不超出父容器 */
+  box-sizing: border-box;
 }
 
 .message-user {
@@ -1358,6 +1383,12 @@ function initToolTabState(messageId: string | number) {
   border-radius: 8px;
   padding: 12px;
   overflow-wrap: break-word;
+  word-wrap: break-word;
+  word-break: break-word;
+  max-width: 100%;
+  min-width: 0; /* 允许flex子元素收缩 */
+  flex: 1; /* 占用剩余空间 */
+  box-sizing: border-box;
 }
 
 .message-user .message-content {
@@ -1394,32 +1425,72 @@ function initToolTabState(messageId: string | number) {
 .message-text {
 }
 
-.input-container {
-  padding: 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.12);
+/* 悬浮输入容器 */
+.floating-input-container {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 800px;
+  z-index: 10;
 }
 
-.input-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.input-wrapper {
+  background: rgba(var(--v-theme-surface), 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(var(--v-theme-outline), 0.2);
+  padding: 12px;
+}
+
+.selected-tools-chip {
   margin-bottom: 8px;
+  display: flex;
+  justify-content: center;
 }
 
-.input-container .v-textarea {
-  flex-grow: 1;
-}
-
-.send-actions {
+.input-field-container {
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  margin-top: 8px;
+  position: relative;
 }
 
-.send-button, .tool-button {
-  align-self: flex-end;
-  margin-bottom: 8px;
+.tool-button-left {
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.message-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-input :deep(.v-field) {
+  border-radius: 20px;
+}
+
+.message-input :deep(.v-field__input) {
+  padding: 8px 16px;
+  min-height: 40px;
+}
+
+.send-button-right {
+  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+/* 为聊天容器添加底部padding，避免被悬浮输入框遮挡 */
+.message-container {
+  padding-bottom: 120px; /* 为悬浮输入框留出空间 */
+}
+
+/* 暗色主题适配 */
+.v-theme--dark .input-wrapper {
+  background: rgba(var(--v-theme-surface), 0.9);
+  border: 1px solid rgba(var(--v-theme-outline), 0.3);
 }
 
 .error-alert {
@@ -1433,16 +1504,59 @@ function initToolTabState(messageId: string | number) {
   line-height: 1.6;
   padding: 0;
   background: transparent !important;
+  max-width: 100%;
+  overflow-x: hidden;
+  word-wrap: break-word;
+  word-break: break-word;
 }
 
 :deep(.md-editor-preview-wrapper) {
   padding: 0;
   background: transparent !important;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 :deep(.md-editor) {
   color: inherit;
   background: transparent !important;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 通用内容宽度控制 */
+:deep(.md-editor-preview *) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* 代码块样式优化 */
+:deep(.md-editor-preview pre) {
+  overflow-x: auto;
+  max-width: 100%;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  box-sizing: border-box;
+}
+
+:deep(.md-editor-preview code) {
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* 图片样式优化 */
+:deep(.md-editor-preview img) {
+  max-width: 100%;
+  height: auto;
+  box-sizing: border-box;
+}
+
+/* 链接样式优化 */
+:deep(.md-editor-preview a) {
+  word-wrap: break-word;
+  word-break: break-all;
+  overflow-wrap: break-word;
 }
 
 /* 明亮主题下的md-editor样式 */
@@ -1478,12 +1592,20 @@ function initToolTabState(messageId: string | number) {
 :deep(.md-editor-preview table) {
   border-collapse: collapse;
   background: transparent !important;
+  max-width: 100%;
+  width: 100%;
+  table-layout: fixed; /* 固定表格布局，防止超出容器 */
+  word-wrap: break-word;
 }
 
 :deep(.md-editor-preview table th),
 :deep(.md-editor-preview table td) {
   border: 1px solid var(--md-border-color) !important;
   background: transparent !important;
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  max-width: 0; /* 配合table-layout: fixed使用 */
 }
 
 :deep(.md-editor-preview table th) {
@@ -1502,11 +1624,17 @@ function initToolTabState(messageId: string | number) {
 /* 工具调用样式 */
 .tool-calls-container {
   margin-top: 8px;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .tool-call-card {
   border: 1px solid rgba(var(--v-theme-primary), 0.3);
   background-color: rgba(var(--v-theme-primary), 0.05);
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .tool-call-item {
@@ -1528,14 +1656,23 @@ function initToolTabState(messageId: string | number) {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .tool-result-container {
   margin-top: 8px;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .tool-result-card {
   border: 1px solid rgba(var(--v-theme-success), 0.3);
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .tool-result-card pre {
@@ -1547,6 +1684,9 @@ function initToolTabState(messageId: string | number) {
   word-break: break-all;
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* 新的工具调用tab样式 */
@@ -1555,6 +1695,8 @@ function initToolTabState(messageId: string | number) {
   border: 1px solid rgba(var(--v-theme-primary), 0.2);
   border-radius: 8px;
   overflow: hidden;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .tool-tabs-header {
@@ -1597,6 +1739,11 @@ function initToolTabState(messageId: string | number) {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 0.75rem;
   line-height: 1.4;
+  max-width: 100%;
+  overflow-x: auto;
+  word-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 200px;

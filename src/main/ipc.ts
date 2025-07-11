@@ -11,12 +11,157 @@ import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOllama } from '@langchain/ollama';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+
+const execAsync = promisify(exec);
 
 // 创建日志记录器
 const apiLogger = createLogger('API');
 const mcpLogger = createLogger('MCP');
 const ipcLogger = createLogger('IPC');
 const agentLogger = createLogger('Agent');
+
+// IP检测和环境配置相关函数
+let userIpInfo: { isChina: boolean; ip: string } | null = null;
+
+// 检测用户IP是否为国内IP
+async function detectUserIP(): Promise<{ isChina: boolean; ip: string }> {
+  if (userIpInfo) {
+    return userIpInfo;
+  }
+  
+  try {
+    mcpLogger.info('正在检测用户IP地址...');
+    
+    // 使用多个IP检测服务，提高成功率
+    const ipServices = [
+      'https://api.ipify.org?format=json',
+      'https://httpbin.org/ip',
+      'https://api.ip.sb/ip'
+    ];
+    
+    let ipAddress = '';
+    
+    // 尝试获取IP地址
+    for (const service of ipServices) {
+      try {
+        const response = await fetch(service, { timeout: 5000 });
+        const data = await response.json();
+        ipAddress = data.ip || data.origin?.split(',')[0]?.trim() || data;
+        if (ipAddress) break;
+      } catch (error) {
+        mcpLogger.warn(`IP检测服务 ${service} 失败:`, error);
+        continue;
+      }
+    }
+    
+    if (!ipAddress) {
+      mcpLogger.warn('无法获取IP地址，默认为非国内IP');
+      userIpInfo = { isChina: false, ip: 'unknown' };
+      return userIpInfo;
+    }
+    
+    // 检测是否为中国IP
+    let isChina = false;
+    try {
+      const geoResponse = await fetch(`http://ip-api.com/json/${ipAddress}?fields=country,countryCode`, { timeout: 5000 });
+      const geoData = await geoResponse.json();
+      isChina = geoData.countryCode === 'CN' || geoData.country === 'China';
+      mcpLogger.info(`检测到IP: ${ipAddress}, 国家: ${geoData.country}, 是否为中国: ${isChina}`);
+    } catch (error) {
+      mcpLogger.warn('IP地理位置检测失败，通过IP段判断:', error);
+      // 备用方案：通过常见的中国IP段判断
+      const chinaIpRanges = [
+        /^1\./, /^14\./, /^27\./, /^36\./, /^39\./, /^42\./, /^49\./, /^58\./, /^59\./, /^60\./,
+        /^61\./, /^101\./, /^103\./, /^106\./, /^110\./, /^111\./, /^112\./, /^113\./, /^114\./, /^115\./,
+        /^116\./, /^117\./, /^118\./, /^119\./, /^120\./, /^121\./, /^122\./, /^123\./, /^124\./, /^125\./,
+        /^175\./, /^180\./, /^182\./, /^183\./, /^202\./, /^203\./, /^210\./, /^211\./, /^218\./, /^219\./,
+        /^220\./, /^221\./, /^222\./, /^223\./
+      ];
+      isChina = chinaIpRanges.some(range => range.test(ipAddress));
+    }
+    
+    userIpInfo = { isChina, ip: ipAddress };
+    mcpLogger.info(`IP检测完成: ${ipAddress}, 是否为中国IP: ${isChina}`);
+    return userIpInfo;
+    
+  } catch (error) {
+    mcpLogger.error('IP检测失败:', error);
+    userIpInfo = { isChina: false, ip: 'unknown' };
+    return userIpInfo;
+  }
+}
+
+// 配置uv国内源
+async function configureUvChinaSource(env: Record<string, string>): Promise<Record<string, string>> {
+  try {
+    const ipInfo = await detectUserIP();
+    
+    if (ipInfo.isChina) {
+      mcpLogger.info('检测到国内IP，配置uv使用清华源');
+      
+      // 设置uv的国内源环境变量
+      const updatedEnv = {
+        ...env,
+        'UV_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
+        'UV_EXTRA_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
+        'PIP_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
+        'PIP_TRUSTED_HOST': 'pypi.tuna.tsinghua.edu.cn'
+      };
+      
+      mcpLogger.info('已配置uv和pip使用清华源');
+      return updatedEnv;
+    } else {
+      mcpLogger.info('检测到海外IP，使用默认源');
+      return env;
+    }
+  } catch (error) {
+    mcpLogger.warn('配置uv源失败，使用默认环境:', error);
+    return env;
+  }
+}
+
+// 检查并配置包管理器源
+async function configurePackageManagerSources(env: Record<string, string>, command: string): Promise<Record<string, string>> {
+  try {
+    const ipInfo = await detectUserIP();
+    
+    if (!ipInfo.isChina) {
+      return env;
+    }
+    
+    mcpLogger.info(`检测到国内IP，为命令 ${command} 配置国内源`);
+    
+    let updatedEnv = { ...env };
+    
+    // 根据命令类型配置相应的源
+    if (command.includes('uv') || command.includes('pip')) {
+      updatedEnv = await configureUvChinaSource(updatedEnv);
+    } else if (command.includes('npm') || command.includes('yarn') || command.includes('pnpm')) {
+      // 配置npm国内源
+      updatedEnv = {
+        ...updatedEnv,
+        'NPM_CONFIG_REGISTRY': 'https://registry.npmmirror.com',
+        'YARN_REGISTRY': 'https://registry.npmmirror.com'
+      };
+      mcpLogger.info('已配置npm/yarn使用国内源');
+    } else if (command.includes('go')) {
+      // 配置Go模块代理
+      updatedEnv = {
+        ...updatedEnv,
+        'GOPROXY': 'https://goproxy.cn,direct',
+        'GOSUMDB': 'sum.golang.google.cn'
+      };
+      mcpLogger.info('已配置Go使用国内代理');
+    }
+    
+    return updatedEnv;
+  } catch (error) {
+    mcpLogger.warn('配置包管理器源失败，使用默认环境:', error);
+    return env;
+  }
+}
 
 // 新的MCP客户端管理器 - 基于LangChain MCP适配器
 class LangChainMcpManager {
@@ -48,8 +193,8 @@ class LangChainMcpManager {
         if (service.type === 'stdio') {
           const args = service.args ? service.args.split('\n').filter(arg => arg.trim() !== '') : [];
           
-          // 处理环境变量
-          let env = {};
+          // 处理环境变量 - 继承系统环境变量并添加用户配置的环境变量
+          let env = { ...process.env }; // 继承系统环境变量
           if (service.env) {
             const envLines = service.env.split('\n').filter(line => line.trim() !== '');
             for (const line of envLines) {
@@ -60,11 +205,15 @@ class LangChainMcpManager {
             }
           }
           
+          // 根据命令配置包管理器源
+          const command = service.command || '';
+          env = await configurePackageManagerSources(env, command);
+          
           mcpServers[serverKey] = {
             transport: 'stdio',
             command: service.command,
             args: args,
-            env: env, // 只使用用户配置的环境变量
+            env: env, // 继承系统环境变量并添加用户配置的环境变量
             restart: {
               enabled: true,
               maxAttempts: 3,
@@ -108,7 +257,7 @@ class LangChainMcpManager {
       mcpLogger.error('LangChain MCP客户端初始化失败:', error);
       this.tools = [];
       this.isInitialized = true;
-      throw error;
+      // 不抛出错误，允许应用继续运行
     }
   }
   
@@ -199,8 +348,8 @@ class McpClientPool {
         const args = service.args ? service.args.split('\n').filter(arg => arg.trim() !== '') : [];
         
         mcpLogger.info(`MCP服务 args: ${args}`)
-        // 处理环境变量
-        let env = {};
+        // 处理环境变量 - 继承系统环境变量并添加用户配置的环境变量
+        let env = { ...process.env }; // 继承系统环境变量
         mcpLogger.info(`MCP服务环境变量: ${service.env}`)
         if (service.env) {
           const envLines = service.env.split('\n').filter(line => line.trim() !== '');
@@ -211,6 +360,10 @@ class McpClientPool {
             }
           }
         }
+        
+        // 根据命令配置包管理器源
+        const command = service.command || '';
+        env = await configurePackageManagerSources(env, command);
         
         mcpLogger.info(`创建MCP客户端连接: ${service.command} ${args.join(' ')}`);
         if (service.env) {
@@ -1731,5 +1884,68 @@ ipcMain.handle('stop-generation', async (_, conversationId: number) => {
   } catch (error) {
     ipcLogger.error('停止生成失败:', error);
     return { success: false, message: '停止生成失败' };
+  }
+});
+
+// 测试IP检测和源配置
+ipcMain.handle('test-ip-detection', async () => {
+  try {
+    ipcLogger.info('开始测试IP检测和源配置功能');
+    
+    // 检测IP
+    const ipInfo = await detectUserIP();
+    
+    // 测试不同包管理器的源配置
+    const testCommands = ['uv', 'pip', 'npm', 'yarn', 'go'];
+    const sourceConfigs = {};
+    
+    for (const command of testCommands) {
+      const baseEnv = { ...process.env };
+      const configuredEnv = await configurePackageManagerSources(baseEnv, command);
+      
+      // 提取相关的源配置环境变量
+      const relevantEnvVars = {};
+      Object.keys(configuredEnv).forEach(key => {
+        if (key.includes('INDEX') || key.includes('REGISTRY') || key.includes('PROXY') || key.includes('TRUSTED')) {
+          if (configuredEnv[key] !== baseEnv[key]) {
+            relevantEnvVars[key] = configuredEnv[key];
+          }
+        }
+      });
+      
+      if (Object.keys(relevantEnvVars).length > 0) {
+        sourceConfigs[command] = relevantEnvVars;
+      }
+    }
+    
+    const result = {
+      success: true,
+      ipInfo,
+      sourceConfigs,
+      message: ipInfo.isChina ? '检测到国内IP，已配置国内源' : '检测到海外IP，使用默认源'
+    };
+    
+    ipcLogger.info('IP检测和源配置测试完成:', result);
+    return result;
+    
+  } catch (error) {
+    ipcLogger.error('IP检测和源配置测试失败:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'IP检测和源配置测试失败'
+    };
+  }
+});
+
+// 重置IP检测缓存
+ipcMain.handle('reset-ip-cache', async () => {
+  try {
+    userIpInfo = null;
+    ipcLogger.info('IP检测缓存已重置');
+    return { success: true, message: 'IP检测缓存已重置' };
+  } catch (error) {
+    ipcLogger.error('重置IP检测缓存失败:', error);
+    return { success: false, error: error.message };
   }
 });
