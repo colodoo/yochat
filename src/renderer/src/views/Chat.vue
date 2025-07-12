@@ -935,7 +935,6 @@ function initToolTabState(messageId: string | number) {
                 </v-btn>
                 
                 <v-btn
-                  v-if="message.role !== 'system'"
                   icon
                   size="x-small"
                   variant="text"

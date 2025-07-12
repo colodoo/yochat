@@ -60,6 +60,10 @@ const modelTypeDefaults = {
     api_url: 'http://localhost:11434',
     model_name: 'llama2'
   },
+  moonshot: {
+    api_url: 'https://api.moonshot.cn/v1',
+    model_name: 'moonshot-v1-8k'
+  },
   custom: {
     api_url: '',
     model_name: ''
@@ -85,6 +89,7 @@ const modelTypes = [
   { value: 'anthropic', title: 'Anthropic Claude', icon: 'mdi-brain', color: 'orange' },
   { value: 'gemini', title: 'Google Gemini', icon: 'mdi-google', color: 'red' },
   { value: 'ollama', title: 'Ollama', icon: 'mdi-llama', color: 'purple' },
+  { value: 'moonshot', title: 'Moonshot AI', icon: 'mdi-moon-waning-crescent', color: 'indigo' },
   { value: 'custom', title: '自定义', icon: 'mdi-cog', color: 'grey' }
 ]
 
@@ -493,7 +498,7 @@ async function deleteModel() {
                     type="password"
                     hint="您的API密钥"
                     persistent-hint
-                    :rules="[v => (form.model_type === 'openai' || form.model_type === 'azure' || form.model_type === 'anthropic' || form.model_type === 'gemini') ? !!v || '需要API密钥' : true]"
+                    :rules="[v => (form.model_type === 'openai' || form.model_type === 'azure' || form.model_type === 'anthropic' || form.model_type === 'gemini' || form.model_type === 'moonshot') ? !!v || '需要API密钥' : true]"
                   ></v-text-field>
                 </v-col>
                 
@@ -502,7 +507,7 @@ async function deleteModel() {
                   <v-text-field
                     v-model="form.model_name"
                     label="模型名称"
-                    hint="例如：gpt-3.5-turbo, gpt-4, claude-2, gemini-pro, llama2 等"
+                    hint="例如：gpt-3.5-turbo, gpt-4, claude-2, gemini-pro, llama2, moonshot-v1-8k 等"
                     persistent-hint
                     :rules="[v => !!v || '模型名称不能为空']"
                   ></v-text-field>

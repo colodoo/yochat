@@ -10,6 +10,7 @@ import { ChatOpenAI } from '@langchain/openai';
 import { ChatAnthropic } from '@langchain/anthropic';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOllama } from '@langchain/ollama';
+import { ChatMoonshot } from '@langchain/community/chat_models/moonshot';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { promisify } from 'util';
 import { exec } from 'child_process';
@@ -606,6 +607,15 @@ function createLLMInstance(assistant: any): any {
         baseUrl: assistant.api_url || 'http://localhost:11434'
       });
     
+    case 'moonshot':
+      return new ChatMoonshot({
+        modelName: assistant.model_name || 'moonshot-v1-8k',
+        temperature: assistant.temperature || 0.7,
+        maxTokens: assistant.max_tokens || 2048,
+        moonshotApiKey: assistant.api_key,
+        baseURL: assistant.api_url || 'https://api.moonshot.cn/v1'
+      });
+    
     default:
       // 默认使用OpenAI兼容格式
       return new ChatOpenAI({
@@ -687,7 +697,7 @@ async function callLangChainAPI(llm: any, messages: any[], tools?: any[], onProg
             throw new Error('Request aborted by user');
           }
           
-          // agentLogger.debug(`[StreamEvent] ${event.event}: ${event.name}`);
+          agentLogger.debug(`[StreamEvent] ${event.event}: ${event.name}`);
           
           // 处理不同类型的流式事件
           if (event.event === 'on_chat_model_stream') {
