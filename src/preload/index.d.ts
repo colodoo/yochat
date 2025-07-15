@@ -69,6 +69,9 @@ interface API {
     onCallDone: (callback: (result: any) => void) => () => void
     onCallError: (callback: (error: any) => void) => () => void
   }
+  openCodeRunner: (data: { code: string, title: string, language: string }) => void
+  closeCodeRunner: () => void
+  codeRunnerReady: () => void
 }
 
 declare global {

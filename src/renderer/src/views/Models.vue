@@ -280,6 +280,81 @@ async function deleteModel() {
     loading.value = false
   }
 }
+
+// 导出配置
+const exportConfig = () => {
+  try {
+    const config = {
+      models: modelStore.models,
+      exportTime: new Date().toISOString(),
+      version: '1.0'
+    }
+    
+    const dataStr = JSON.stringify(config, null, 2)
+    const dataBlob = new Blob([dataStr], { type: 'application/json' })
+    
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(dataBlob)
+    link.download = `models-config-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    snackbarText.value = '配置导出成功'
+    snackbar.value = true
+  } catch (error) {
+    console.error('导出配置失败:', error)
+    snackbarText.value = '导出配置失败'
+    snackbar.value = true
+  }
+}
+
+// 导入配置
+const importConfig = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  
+  input.onchange = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    
+    try {
+      const text = await file.text()
+      const config = JSON.parse(text)
+      
+      if (!config.models || !Array.isArray(config.models)) {
+        throw new Error('无效的配置文件格式')
+      }
+      
+      loading.value = true
+      let successCount = 0
+      
+      for (const model of config.models) {
+        try {
+          // 创建新模型，不包含id字段
+          const { id, ...modelData } = model
+          await modelStore.createModel(modelData)
+          successCount++
+        } catch (error) {
+          console.error(`导入模型 ${model.name} 失败:`, error)
+        }
+      }
+      
+      await loadModels()
+      snackbarText.value = `成功导入 ${successCount} 个模型`
+      snackbar.value = true
+    } catch (error) {
+      console.error('导入配置失败:', error)
+      snackbarText.value = '导入配置失败，请检查文件格式'
+      snackbar.value = true
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  input.click()
+}
 </script>
 
 <template>
@@ -358,6 +433,12 @@ async function deleteModel() {
           </v-avatar>
           {{ selectedModelTypeInfo.title }} 模型
           <v-spacer></v-spacer>
+          <v-btn color="info" variant="outlined" class="mr-2" prepend-icon="mdi-import" @click="importConfig">
+            导入配置
+          </v-btn>
+          <v-btn color="success" variant="outlined" class="mr-2" prepend-icon="mdi-export" @click="exportConfig">
+            导出配置
+          </v-btn>
           <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
             新建模型
           </v-btn>

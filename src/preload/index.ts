@@ -115,6 +115,12 @@ const api = {
     }
   },
   
+  // 代码运行窗口相关
+  openCodeRunner: (data: { code: string, title: string, language: string }) => 
+    ipcRenderer.send('open-code-runner', data),
+  closeCodeRunner: () => ipcRenderer.send('close-code-runner'),
+  codeRunnerReady: () => ipcRenderer.send('code-runner-ready'),
+  
   // 通用IPC调用
   invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args)
 }

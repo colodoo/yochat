@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useConversationStore } from '../stores/conversation'
 import { useAssistantStore } from '../stores/assistant'
@@ -25,6 +25,22 @@ const newChatTitle = ref('新对话')
 
 // 清空所有对话确认对话框
 const clearAllDialog = ref(false)
+
+// 右键菜单相关
+const contextMenu = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const selectedConversation = ref<any>(null)
+
+// 重命名对话框
+const renameDialog = ref(false)
+const renameTitle = ref('')
+
+// 确认对话框
+const confirmDialog = ref(false)
+const confirmTitle = ref('')
+const confirmMessage = ref('')
+const confirmAction = ref<(() => void) | null>(null)
 
 // 初始化数据
 onMounted(async () => {
@@ -98,6 +114,106 @@ function selectConversation(id: number) {
   router.push(`/chat/${id}`)
 }
 
+// 显示右键菜单
+function showContextMenu(e: MouseEvent, conversation: any) {
+  e.preventDefault()
+  selectedConversation.value = conversation
+  contextMenuX.value = e.clientX
+  contextMenuY.value = e.clientY
+  contextMenu.value = true
+}
+
+// 重命名对话
+function openRenameDialog() {
+  if (selectedConversation.value) {
+    renameTitle.value = selectedConversation.value.title
+    renameDialog.value = true
+  }
+  contextMenu.value = false
+}
+
+async function confirmRename() {
+  if (selectedConversation.value && renameTitle.value.trim()) {
+    try {
+      await conversationStore.updateConversationTitle(selectedConversation.value.id, renameTitle.value.trim())
+      renameDialog.value = false
+      renameTitle.value = ''
+    } catch (error) {
+      console.error('重命名失败:', error)
+      alert('重命名失败，请重试')
+    }
+  }
+}
+
+// 清空对话消息
+function clearConversationMessages() {
+  if (selectedConversation.value) {
+    showConfirmDialog(
+      '清空消息',
+      `确定要清空对话"${selectedConversation.value.title}"的所有消息吗？`,
+      async () => {
+        try {
+          await window.api.invoke('clear-conversation-messages', selectedConversation.value.id)
+          // 如果当前在该对话页面，重新加载消息
+          if (router.currentRoute.value.path === `/chat/${selectedConversation.value.id}`) {
+            await conversationStore.loadMessages(selectedConversation.value.id)
+          }
+        } catch (error) {
+          console.error('清空消息失败:', error)
+          alert('清空消息失败，请重试')
+        }
+      }
+    )
+  }
+  contextMenu.value = false
+}
+
+// 删除对话
+function deleteConversation() {
+  if (selectedConversation.value) {
+    showConfirmDialog(
+      '删除对话',
+      `确定要删除对话"${selectedConversation.value.title}"吗？此操作不可撤销。`,
+      async () => {
+        try {
+          await conversationStore.deleteConversation(selectedConversation.value.id)
+          // 如果当前在该对话页面，跳转到首页
+          if (router.currentRoute.value.path === `/chat/${selectedConversation.value.id}`) {
+            router.push('/')
+          }
+        } catch (error) {
+          console.error('删除对话失败:', error)
+          alert('删除对话失败，请重试')
+        }
+      }
+    )
+  }
+  contextMenu.value = false
+}
+
+// 显示确认对话框
+function showConfirmDialog(title: string, message: string, action: () => void) {
+  confirmTitle.value = title
+  confirmMessage.value = message
+  confirmAction.value = action
+  confirmDialog.value = true
+}
+
+// 执行确认操作
+function executeConfirmAction() {
+  if (confirmAction.value) {
+    confirmAction.value()
+  }
+  confirmDialog.value = false
+  confirmAction.value = null
+}
+
+// 取消确认操作
+function cancelConfirmAction() {
+  confirmDialog.value = false
+  confirmAction.value = null
+}
+
 // 清空所有对话
 async function clearAllConversations() {
   try {
@@ -144,6 +260,64 @@ watch(
   },
   { immediate: true }
 )
+
+// 按日期分组对话
+const groupedConversations = computed(() => {
+  const groups: { [key: string]: any[] } = {}
+  
+  conversationStore.conversations.forEach(conversation => {
+    const date = new Date(conversation.created_at)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    
+    let groupKey: string
+    
+    if (date.toDateString() === today.toDateString()) {
+      groupKey = '今天'
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      groupKey = '昨天'
+    } else {
+      const diffTime = today.getTime() - date.getTime()
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+      
+      if (diffDays <= 7) {
+        groupKey = '本周'
+      } else if (diffDays <= 30) {
+        groupKey = '本月'
+      } else {
+        groupKey = date.getFullYear() + '年' + (date.getMonth() + 1) + '月'
+      }
+    }
+    
+    if (!groups[groupKey]) {
+      groups[groupKey] = []
+    }
+    groups[groupKey].push(conversation)
+  })
+  
+  // 按时间排序分组
+  const sortedGroups = Object.keys(groups).sort((a, b) => {
+    const order = ['今天', '昨天', '本周', '本月']
+    const aIndex = order.indexOf(a)
+    const bIndex = order.indexOf(b)
+    
+    if (aIndex !== -1 && bIndex !== -1) {
+      return aIndex - bIndex
+    } else if (aIndex !== -1) {
+      return -1
+    } else if (bIndex !== -1) {
+      return 1
+    } else {
+      return b.localeCompare(a)
+    }
+  })
+  
+  return sortedGroups.map(key => ({
+    title: key,
+    conversations: groups[key].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }))
+})
 </script>
 
 <template>
@@ -234,19 +408,30 @@ watch(
 
         <!-- 对话列表 -->
         <div class="conversation-list-container">
-          <v-list density="compact" nav class="conversation-list">
-            <v-list-item
-              v-for="conversation in conversationStore.conversations"
-              :key="conversation.id"
-              :title="conversation.title"
-              :value="conversation.id"
-              :active="conversationStore.currentConversationId === conversation.id"
-              @click="selectConversation(conversation.id)"
-              prepend-icon="mdi-chat"
-              class="text-body-2"
-              lines="one"
-            ></v-list-item>
-          </v-list>
+          <div class="conversation-list">
+            <template v-for="group in groupedConversations" :key="group.title">
+              <!-- 日期分组标题 -->
+              <div class="date-group-header">
+                <span class="date-group-title">{{ group.title }}</span>
+              </div>
+              
+              <!-- 该分组下的对话列表 -->
+              <v-list density="compact" nav class="group-conversation-list">
+                <v-list-item
+                  v-for="conversation in group.conversations"
+                  :key="conversation.id"
+                  :title="conversation.title"
+                  :value="conversation.id"
+                  :active="conversationStore.currentConversationId === conversation.id"
+                  @click="selectConversation(conversation.id)"
+                  @contextmenu="showContextMenu($event, conversation)"
+                  prepend-icon="mdi-chat"
+                  class="text-body-2 conversation-item"
+                  lines="one"
+                ></v-list-item>
+              </v-list>
+            </template>
+          </div>
         </div>
 
         <!-- 底部菜单 -->
@@ -331,6 +516,75 @@ watch(
           <v-spacer></v-spacer>
           <v-btn color="grey" variant="text" size="small" @click="clearAllDialog = false">取消</v-btn>
           <v-btn color="error" size="small" @click="clearAllConversations">确认清空</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 右键菜单 -->
+    <v-menu
+      v-model="contextMenu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+      absolute
+      offset-y
+    >
+      <v-list density="compact">
+        <v-list-item @click="openRenameDialog" density="compact">
+          <template v-slot:prepend>
+            <v-icon size="small">mdi-pencil</v-icon>
+          </template>
+          <v-list-item-title class="text-body-2">重命名</v-list-item-title>
+        </v-list-item>
+        <v-list-item @click="clearConversationMessages" density="compact">
+          <template v-slot:prepend>
+            <v-icon size="small">mdi-delete-sweep</v-icon>
+          </template>
+          <v-list-item-title class="text-body-2">清空消息</v-list-item-title>
+        </v-list-item>
+        <v-list-item @click="deleteConversation" density="compact">
+          <template v-slot:prepend>
+            <v-icon size="small" color="error">mdi-delete</v-icon>
+          </template>
+          <v-list-item-title class="text-body-2 text-error">删除对话</v-list-item-title>
+        </v-list-item>
+      </v-list>
+    </v-menu>
+
+    <!-- 重命名对话框 -->
+    <v-dialog v-model="renameDialog" max-width="450px">
+      <v-card>
+        <v-card-title class="text-subtitle-1">重命名对话</v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="renameTitle"
+            label="对话标题"
+            required
+            density="compact"
+            variant="outlined"
+            class="mb-3"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" variant="text" size="small" @click="renameDialog = false">取消</v-btn>
+          <v-btn color="primary" size="small" @click="confirmRename">保存</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 确认对话框 -->
+    <v-dialog v-model="confirmDialog" max-width="400px" persistent>
+      <v-card>
+        <v-card-title class="text-subtitle-1 d-flex align-center">
+          <v-icon color="warning" class="mr-2">mdi-alert</v-icon>
+          {{ confirmTitle }}
+        </v-card-title>
+        <v-card-text>
+          <p class="mb-0">{{ confirmMessage }}</p>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" size="small" @click="cancelConfirmAction">取消</v-btn>
+          <v-btn color="error" size="small" @click="executeConfirmAction">确认</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -522,6 +776,32 @@ watch(
 
 .sidebar-menu-item:hover {
   background-color: rgba(var(--v-theme-primary), 0.1);
+}
+
+/* 日期分组样式 */
+.date-group-header {
+  padding: 8px 16px 4px 16px;
+  background-color: rgba(var(--v-theme-on-surface), 0.02);
+}
+
+.date-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.group-conversation-list {
+  margin-bottom: 8px;
+}
+
+.conversation-item {
+  transition: background-color 0.2s ease;
+}
+
+.conversation-item:hover {
+  background-color: rgba(var(--v-theme-primary), 0.08);
 }
 
 /* 适配小屏幕 */

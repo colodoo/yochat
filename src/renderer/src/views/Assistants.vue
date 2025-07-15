@@ -223,6 +223,89 @@ async function setCurrentAssistant(id: string) {
     snackbar.value = true
   }
 }
+
+// 导出配置
+function exportConfig() {
+  try {
+    const config = {
+      assistants: assistantStore.assistants.map(assistant => ({
+        name: assistant.name,
+        model_id: assistant.model_id,
+        system_prompt: assistant.system_prompt,
+        agent_type: assistant.agent_type
+      })),
+      exportTime: new Date().toISOString(),
+      version: '1.0'
+    }
+    
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `assistants-config-${new Date().toISOString().split('T')[0]}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    
+    snackbarText.value = '助手配置已导出'
+    snackbar.value = true
+  } catch (error) {
+    console.error('导出配置失败:', error)
+    snackbarText.value = '导出配置失败，请重试。'
+    snackbar.value = true
+  }
+}
+
+// 导入配置
+function importConfig() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = async (event) => {
+    const file = (event.target as HTMLInputElement).files?.[0]
+    if (!file) return
+    
+    try {
+      const text = await file.text()
+      const config = JSON.parse(text)
+      
+      // 验证配置格式
+      if (!config.assistants || !Array.isArray(config.assistants)) {
+        throw new Error('无效的配置文件格式')
+      }
+      
+      // 导入助手
+      let importedCount = 0
+      for (const assistantData of config.assistants) {
+        if (assistantData.name && assistantData.model_id && assistantData.system_prompt) {
+          try {
+            await assistantStore.createAssistant({
+              name: assistantData.name,
+              model_id: assistantData.model_id,
+              system_prompt: assistantData.system_prompt,
+              agent_type: assistantData.agent_type || 'direct'
+            })
+            importedCount++
+          } catch (error) {
+            console.warn(`导入助手 "${assistantData.name}" 失败:`, error)
+          }
+        }
+      }
+      
+      // 重新加载助手列表
+      await loadAssistants()
+      
+      snackbarText.value = `成功导入 ${importedCount} 个助手配置`
+      snackbar.value = true
+    } catch (error) {
+      console.error('导入配置失败:', error)
+      snackbarText.value = '导入配置失败，请检查文件格式。'
+      snackbar.value = true
+    }
+  }
+  input.click()
+}
 </script>
 
 <template>
@@ -231,6 +314,12 @@ async function setCurrentAssistant(id: string) {
       <v-card-title class="d-flex align-center">
         <span class="text-h5">AI助手</span>
         <v-spacer></v-spacer>
+        <v-btn color="secondary" variant="outlined" prepend-icon="mdi-upload" @click="importConfig" class="mr-2">
+          导入配置
+        </v-btn>
+        <v-btn color="secondary" variant="outlined" prepend-icon="mdi-download" @click="exportConfig" class="mr-2">
+          导出配置
+        </v-btn>
         <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
           新建助手
         </v-btn>

@@ -6,7 +6,7 @@ import { useAssistantStore } from '../stores/assistant'
 import { useModelStore } from '../stores/model'
 import { useSettingStore } from '../stores/setting'
 import { useMcpStore } from '../stores/mcp'
-import { MdPreview } from 'md-editor-v3'
+import { MdPreview, config } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 
 const route = useRoute()
@@ -55,6 +55,38 @@ const conversationId = computed(() => Number(route.params.id))
 
 // 临时存储MCP服务选择（用于对话框中的选择状态）
 const tempSelectedMcpServices = ref<string[]>([])
+
+// md-preview相关
+config({
+  markdownItPlugins(plugins, { editorId }) {
+    return plugins.map((item) => {
+      switch (item.type) {
+        case 'code': {
+          return {
+            ...item,
+            options: {
+              ...item.options,
+              extraTools: ({ lang }) => {
+                const downloadText = `<span class="code-tool-text download-text" data-lang="${lang}">下载</span>`;
+                
+                // if (lang === 'html') {
+                //   const runText = `<span class="code-tool-text run-text">运行</span>`;
+                //   return downloadText + ' ' + runText;
+                // }
+                
+                return downloadText;
+              },
+            },
+          };
+        }
+
+        default: {
+          return item;
+        }
+      }
+    });
+  },
+});
 
 // 监听路由参数变化，当切换对话时重新加载消息
 watch(() => route.params.id, async (newId) => {
@@ -215,14 +247,15 @@ onMounted(async () => {
     mcpCallProgress.value = data
   })
   
-
-  
   const removeMcpErrorListener = window.api.mcp.onCallError((error) => {
     mcpCallProgress.value = null
     console.error('MCP调用失败:', error)
     // 添加错误消息到对话中
     conversationStore.addMessage('system', `MCP服务调用失败: ${error.error}`)
   })
+  
+  // 添加代码工具按钮事件监听器
+  document.addEventListener('click', handleCodeToolClick)
   
   // 组件卸载时移除事件监听器
   return () => {
@@ -231,6 +264,7 @@ onMounted(async () => {
     removeCancelledListener()
     removeMcpProgressListener()
     removeMcpErrorListener()
+    document.removeEventListener('click', handleCodeToolClick)
   }
 })
 
@@ -252,6 +286,11 @@ const confirmDialog = ref(false)
 const confirmTitle = ref('')
 const confirmMessage = ref('')
 const confirmAction = ref<(() => void) | null>(null)
+
+// HTML预览相关的响应式变量
+const showHtmlPreview = ref(false)
+const htmlPreviewContent = ref('')
+const htmlPreviewTitle = ref('')
 
 // 显示提示信息
 function showSnackbar(text: string, color: string = 'success') {
@@ -281,6 +320,64 @@ function executeConfirmAction() {
 function cancelConfirmAction() {
   confirmDialog.value = false
   confirmAction.value = null
+}
+
+// 下载代码
+function downloadCode(code: string, language: string = 'txt') {
+  const blob = new Blob([code], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `code.${language}`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  showSnackbar('代码已下载', 'success')
+}
+
+// 运行HTML代码
+function runHtmlCode(htmlCode: string, title: string = 'HTML预览') {
+  // 使用新的代码运行窗口
+  window.api.openCodeRunner({
+    code: htmlCode,
+    title: title,
+    language: 'html'
+  })
+}
+
+// 关闭HTML预览
+function closeHtmlPreview() {
+  showHtmlPreview.value = false
+  htmlPreviewContent.value = ''
+  htmlPreviewTitle.value = ''
+}
+
+// 处理代码工具文本点击事件
+function handleCodeToolClick(event: Event) {
+  const target = event.target as HTMLElement
+  const toolElement = target.closest('.code-tool-text') as HTMLElement
+  
+  if (!toolElement) return
+  
+  // 查找代码块容器
+  const codeContainer = toolElement.closest('.md-editor-code')
+  if (!codeContainer) return
+  
+  // 获取代码内容
+  const codeElement = codeContainer.querySelector('code')
+  if (!codeElement) return
+  
+  const code = codeElement.textContent || ''
+  
+  if (toolElement.classList.contains('download-text')) {
+    // 从代码块头部获取语言信息
+    const langElement = codeContainer.querySelector('.md-editor-code-lang')
+    const lang = langElement?.textContent?.trim() || toolElement.dataset.lang || 'txt'
+    downloadCode(code, lang)
+  } else if (toolElement.classList.contains('run-text')) {
+    runHtmlCode(code, 'HTML预览')
+  }
 }
 
 // 根据助手ID获取助手名称
@@ -713,9 +810,12 @@ function initToolTabState(messageId: string | number) {
 
 <template>
   <div class="chat-container">
-    <!-- 聊天头部 -->
-    <div class="chat-header">
-      <v-card flat>
+    <!-- 主要内容区域 -->
+    <div class="main-content" :class="{ 'with-preview': showHtmlPreview }">
+      <!-- 聊天区域 -->
+      <div class="chat-area">
+        <div class="chat-header">
+          <v-card flat>
         <v-card-title class="d-flex align-center py-3">
           <span v-if="conversationStore.currentConversation" class="text-body-1 text-truncate conversation-title">
             {{ conversationStore.currentConversation.title }}
@@ -771,7 +871,7 @@ function initToolTabState(messageId: string | number) {
           </div>
         </v-card-title>
       </v-card>
-    </div>
+        </div>
     
     <!-- 消息列表 -->
     <div class="message-container" ref="messageContainer">
@@ -962,8 +1062,33 @@ function initToolTabState(messageId: string | number) {
           </div>
         </div>
       </template>
+    </div>
+      </div>
       
-
+      <!-- HTML预览面板 -->
+      <div v-if="showHtmlPreview" class="html-preview-panel">
+        <div class="preview-header">
+          <div class="preview-title">
+            <v-icon class="mr-2">mdi-web</v-icon>
+            {{ htmlPreviewTitle }}
+          </div>
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            @click="closeHtmlPreview"
+          >
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </div>
+        <div class="preview-content">
+          <iframe
+            :srcdoc="htmlPreviewContent"
+            class="preview-iframe"
+            sandbox="allow-scripts allow-same-origin allow-unsafe-inline"
+          ></iframe>
+        </div>
+      </div>
     </div>
     
     <!-- 错误提示 -->
@@ -1310,12 +1435,126 @@ function initToolTabState(messageId: string | number) {
 .tool-result-container {
   margin-bottom: 4px;
 }
+
+/* 代码块工具栏样式优化 */
+:deep(.md-editor-code-head) {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(var(--v-theme-surface-variant), 0.3);
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.2);
+}
+
+:deep(.md-editor-code-head .md-editor-code-lang) {
+  font-weight: 500;
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
 .chat-container {
   display: flex;
   flex-direction: column;
   height: 100%;
   user-select: text;
   position: relative; /* 为悬浮输入框提供定位上下文 */
+}
+
+.main-content {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.main-content.with-preview {
+  /* 当显示预览时的样式 */
+}
+
+.main-content.with-preview .chat-area {
+  flex: 1;
+  min-width: 400px;
+  border-right: 1px solid rgba(var(--v-theme-outline), 0.2);
+}
+
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.html-preview-panel {
+  flex: 0 0 50%;
+  min-width: 400px;
+  max-width: 60%;
+  border-left: 1px solid rgba(var(--v-theme-outline), 0.2);
+  display: flex;
+  flex-direction: column;
+  background: rgb(var(--v-theme-surface));
+  height: 100%;
+  overflow: hidden;
+}
+
+.preview-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(var(--v-theme-outline), 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(var(--v-theme-surface-variant), 0.3);
+  flex-shrink: 0;
+}
+
+.preview-title {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: rgb(var(--v-theme-on-surface));
+}
+
+.preview-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: white;
+  display: block;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  .html-preview-panel {
+    flex: 0 0 45%;
+    min-width: 350px;
+  }
+  
+  .main-content.with-preview .chat-area {
+    min-width: 350px;
+  }
+}
+
+@media (max-width: 900px) {
+  .html-preview-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 100%;
+    height: 100vh;
+    z-index: 1000;
+    flex: none;
+    max-width: none;
+  }
+  
+  .main-content.with-preview .chat-area {
+    border-right: none;
+  }
 }
 
 .chat-header {
@@ -1797,7 +2036,5 @@ function initToolTabState(messageId: string | number) {
   .tool-result-card pre {
     font-size: 0.7rem;
   }
-  
-
 }
 </style>

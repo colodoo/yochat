@@ -18,6 +18,7 @@ const appLogger = createLogger('App')
 // 存储窗口实例
 let mainWindow: BrowserWindow | null = null
 let miniWindow: BrowserWindow | null = null
+let codeRunnerWindow: BrowserWindow | null = null
 
 // 创建主窗口
 function createWindow(): void {
@@ -94,6 +95,43 @@ function createMiniWindow(): void {
   miniWindow.on('closed', () => {
     miniWindow = null
   })
+}
+
+// 创建代码运行窗口
+function createCodeRunnerWindow(): void {
+  appLogger.info('创建代码运行窗口')
+  codeRunnerWindow = new BrowserWindow({
+    width: 1000,
+    height: 700,
+    minWidth: 600,
+    minHeight: 400,
+    show: false,
+    frame: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.js'),
+      sandbox: false,
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+
+  codeRunnerWindow.on('ready-to-show', () => {
+    codeRunnerWindow?.show()
+    appLogger.info('代码运行窗口已显示')
+  })
+
+  // 窗口关闭时清除引用
+  codeRunnerWindow.on('closed', () => {
+    codeRunnerWindow = null
+  })
+
+  // 加载代码运行器页面
+  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    codeRunnerWindow.loadURL(`${process.env['ELECTRON_RENDERER_URL']}/code-runner.html`)
+  } else {
+    codeRunnerWindow.loadFile(join(__dirname, '../renderer/code-runner.html'))
+  }
 }
 
 // 设置全局快捷键
@@ -199,6 +237,31 @@ ipcMain.on('hide-mini-window', () => {
   if (miniWindow) {
     miniWindow.hide()
   }
+})
+
+// 代码运行窗口控制
+ipcMain.on('open-code-runner', (_, data) => {
+  if (!codeRunnerWindow) {
+    createCodeRunnerWindow()
+    // 等待窗口创建完成后发送代码
+    codeRunnerWindow?.webContents.once('did-finish-load', () => {
+      codeRunnerWindow?.webContents.postMessage('RUN_CODE', data)
+    })
+  } else {
+    codeRunnerWindow.show()
+    codeRunnerWindow.focus()
+    codeRunnerWindow.webContents.postMessage('RUN_CODE', data)
+  }
+})
+
+ipcMain.on('close-code-runner', () => {
+  if (codeRunnerWindow) {
+    codeRunnerWindow.close()
+  }
+})
+
+ipcMain.on('code-runner-ready', () => {
+  appLogger.info('代码运行窗口已准备就绪')
 })
 
 // 窗口控制相关的IPC处理
