@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { api } from '../platform'
 
 export const useAssistantStore = defineStore('assistant', () => {
   // 状态
@@ -17,11 +18,11 @@ export const useAssistantStore = defineStore('assistant', () => {
   async function loadAssistants() {
     try {
       loading.value = true
-      const result = await window.api.assistants.getAll()
+      const result = await api.assistants.getAll()
       assistants.value = result
       
       // 从设置中获取默认助手ID
-      const savedAssistantId = await window.api.settings.get('current_assistant_id')
+      const savedAssistantId = await api.settings.get('current_assistant_id')
       
       if (savedAssistantId) {
         // 检查保存的助手ID是否存在于当前助手列表中
@@ -32,13 +33,13 @@ export const useAssistantStore = defineStore('assistant', () => {
           // 如果保存的助手不存在但有其他助手，则选择第一个
           currentAssistantId.value = result[0].id
           // 更新设置中的默认助手ID
-          await window.api.settings.update('current_assistant_id', result[0].id)
+          await api.settings.update('current_assistant_id', result[0].id)
         }
       } else if (result.length > 0) {
         // 如果没有保存的助手ID但有助手列表，则选择第一个
         currentAssistantId.value = result[0].id
         // 更新设置中的默认助手ID
-        await window.api.settings.update('current_assistant_id', result[0].id)
+        await api.settings.update('current_assistant_id', result[0].id)
       }
     } catch (error) {
       console.error('加载助手失败:', error)
@@ -53,7 +54,7 @@ export const useAssistantStore = defineStore('assistant', () => {
       loading.value = true
       currentAssistantId.value = id
       // 持久化存储当前助手ID到设置中
-      await window.api.settings.update('current_assistant_id', id)
+      await api.settings.update('current_assistant_id', id)
       return id
     } catch (error) {
       console.error('设置当前助手失败:', error)
@@ -77,7 +78,7 @@ export const useAssistantStore = defineStore('assistant', () => {
   }) {
     try {
       loading.value = true
-      const id = await window.api.assistants.create(assistant)
+      const id = await api.assistants.create(assistant)
       await loadAssistants()
       return id
     } catch (error) {
@@ -102,7 +103,7 @@ export const useAssistantStore = defineStore('assistant', () => {
   }) {
     try {
       loading.value = true
-      await window.api.assistants.update(id, assistant)
+      await api.assistants.update(id, assistant)
       await loadAssistants()
     } catch (error) {
       console.error('更新助手失败:', error)
@@ -115,17 +116,17 @@ export const useAssistantStore = defineStore('assistant', () => {
   async function deleteAssistant(id: string) {
     try {
       loading.value = true
-      await window.api.assistants.delete(id)
+      await api.assistants.delete(id)
       if (currentAssistantId.value === id) {
         const remainingAssistants = assistants.value.filter(a => a.id !== id)
         if (remainingAssistants.length > 0) {
           // 设置新的默认助手并更新到设置中
           currentAssistantId.value = remainingAssistants[0].id
-          await window.api.settings.update('current_assistant_id', remainingAssistants[0].id)
+          await api.settings.update('current_assistant_id', remainingAssistants[0].id)
         } else {
           // 如果没有剩余助手，清除默认助手ID
           currentAssistantId.value = null
-          await window.api.settings.update('current_assistant_id', '')
+          await api.settings.update('current_assistant_id', '')
         }
       }
       await loadAssistants()

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { api } from '../platform'
 
 export const useSettingStore = defineStore('setting', () => {
   // 状态
@@ -10,7 +11,7 @@ export const useSettingStore = defineStore('setting', () => {
   async function loadSettings() {
     try {
       loading.value = true
-      const result = await window.api.settings.getAll()
+      const result = await api.settings.getAll()
       settings.value = result
     } catch (error) {
       console.error('加载设置失败:', error)
@@ -28,7 +29,7 @@ export const useSettingStore = defineStore('setting', () => {
   async function updateSetting(key: string, value: string) {
     try {
       loading.value = true
-      await window.api.settings.update(key, value)
+      await api.settings.update(key, value)
       settings.value[key] = value
     } catch (error) {
       console.error(`更新设置 ${key} 失败:`, error)

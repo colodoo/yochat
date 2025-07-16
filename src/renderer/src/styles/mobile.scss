@@ -1,0 +1,218 @@
+// 移动端适配样式
+
+// 安全区域适配
+.safe-area {
+  &-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  &-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  &-left {
+    padding-left: env(safe-area-inset-left);
+  }
+  
+  &-right {
+    padding-right: env(safe-area-inset-right);
+  }
+  
+  &-all {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+// 移动端触摸优化
+.mobile-touch {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  
+  &.selectable {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+// 移动端按钮优化
+.mobile-button {
+  min-height: 44px; // iOS推荐的最小触摸目标
+  min-width: 44px;
+  
+  @media (max-width: 768px) {
+    padding: 12px 16px;
+    font-size: 16px; // 防止iOS缩放
+  }
+}
+
+// 移动端输入框优化
+.mobile-input {
+  @media (max-width: 768px) {
+    font-size: 16px; // 防止iOS缩放
+    
+    &:focus {
+      transform: none; // 防止iOS缩放时的变形
+    }
+  }
+}
+
+// 移动端滚动优化
+.mobile-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  
+  &.no-bounce {
+    overscroll-behavior: none;
+  }
+}
+
+// 移动端导航栏
+.mobile-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--v-theme-surface);
+  border-bottom: 1px solid var(--v-theme-on-surface-variant);
+  
+  @supports (backdrop-filter: blur(10px)) {
+    background: rgba(var(--v-theme-surface-rgb), 0.8);
+    backdrop-filter: blur(10px);
+  }
+}
+
+// 移动端底部导航
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--v-theme-surface);
+  border-top: 1px solid var(--v-theme-on-surface-variant);
+  
+  @supports (backdrop-filter: blur(10px)) {
+    background: rgba(var(--v-theme-surface-rgb), 0.8);
+    backdrop-filter: blur(10px);
+  }
+}
+
+// 移动端内容区域
+.mobile-content {
+  padding-top: 64px; // 为顶部导航栏留空间
+  padding-bottom: 80px; // 为底部导航栏留空间
+  min-height: 100vh;
+  
+  &.no-top-padding {
+    padding-top: 0;
+  }
+  
+  &.no-bottom-padding {
+    padding-bottom: 0;
+  }
+}
+
+// 移动端卡片样式
+.mobile-card {
+  @media (max-width: 768px) {
+    margin: 8px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+}
+
+// 移动端列表项
+.mobile-list-item {
+  min-height: 56px;
+  padding: 12px 16px;
+  
+  @media (max-width: 768px) {
+    min-height: 64px;
+    padding: 16px;
+  }
+}
+
+// 移动端对话框
+.mobile-dialog {
+  @media (max-width: 768px) {
+    margin: 16px;
+    max-height: calc(100vh - 32px);
+    border-radius: 16px;
+  }
+}
+
+// 移动端文本选择
+.mobile-text {
+  @media (max-width: 768px) {
+    line-height: 1.5;
+    
+    &.selectable {
+      -webkit-user-select: text;
+      user-select: text;
+    }
+  }
+}
+
+// 移动端键盘适配
+.keyboard-adjust {
+  transition: padding-bottom 0.3s ease;
+  
+  &.keyboard-open {
+    padding-bottom: var(--keyboard-height, 0px);
+  }
+}
+
+// 移动端横屏适配
+@media (orientation: landscape) and (max-height: 500px) {
+  .mobile-landscape {
+    .mobile-navbar {
+      height: 48px;
+    }
+    
+    .mobile-content {
+      padding-top: 48px;
+    }
+    
+    .mobile-dialog {
+      margin: 8px;
+      max-height: calc(100vh - 16px);
+    }
+  }
+}
+
+// 移动端暗色模式适配
+@media (prefers-color-scheme: dark) {
+  .mobile-dark {
+    .mobile-navbar,
+    .mobile-bottom-nav {
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+  }
+}
+
+// 移动端动画优化
+@media (prefers-reduced-motion: reduce) {
+  .mobile-animation {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+// 移动端高对比度适配
+@media (prefers-contrast: high) {
+  .mobile-high-contrast {
+    .mobile-button {
+      border: 2px solid currentColor;
+    }
+    
+    .mobile-card {
+      border: 1px solid currentColor;
+    }
+  }
+}

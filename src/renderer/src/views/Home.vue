@@ -151,7 +151,7 @@ onMounted(async () => {
         </div>
         
         <!-- 一切就绪，可以开始对话 -->
-        <div v-else class="ready-section">
+        <div class="ready-section">
           <div class="ready-content">
             <h3>一切就绪！</h3>
             <p>现在您可以开始与AI助手进行对话了。</p>

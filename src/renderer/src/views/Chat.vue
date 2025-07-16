@@ -8,6 +8,7 @@ import { useSettingStore } from '../stores/setting'
 import { useMcpStore } from '../stores/mcp'
 import { MdPreview, config } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
+import { api, platformFeatures } from '../platform'
 
 const route = useRoute()
 const router = useRouter()
@@ -156,7 +157,7 @@ onMounted(async () => {
   ])
   
   // 注册流式响应事件
-  const removeStreamListener = window.api.ai.onStreamResponse((data) => {
+  const removeStreamListener = api.ai.onStreamResponse((data) => {
     // 检查是否是当前对话的事件
     if (data.conversationId && data.conversationId !== conversationId.value) {
       return; // 不是当前对话的事件，忽略
@@ -184,7 +185,7 @@ onMounted(async () => {
   })
   
   // 注册流式响应完成事件
-  const removeDoneListener = window.api.ai.onStreamDone(async (data) => {
+  const removeDoneListener = api.ai.onStreamDone(async (data) => {
     // 检查是否是当前对话的事件
     if (data && data.conversationId && data.conversationId !== conversationId.value) {
       return; // 不是当前对话的事件，忽略
@@ -215,7 +216,7 @@ onMounted(async () => {
   })
   
   // 监听流式响应取消事件
-  const removeCancelledListener = window.api.ai.onStreamCancelled((data) => {
+  const removeCancelledListener = api.ai.onStreamCancelled((data) => {
     // 检查是否是当前对话的事件
     if (data && data.conversationId && data.conversationId !== conversationId.value) {
       return; // 不是当前对话的事件，忽略
@@ -243,11 +244,11 @@ onMounted(async () => {
   })
   
   // 注册MCP调用事件监听器
-  const removeMcpProgressListener = window.api.mcp.onCallProgress((data) => {
+  const removeMcpProgressListener = api.mcp.onCallProgress((data) => {
     mcpCallProgress.value = data
   })
   
-  const removeMcpErrorListener = window.api.mcp.onCallError((error) => {
+  const removeMcpErrorListener = api.mcp.onCallError((error) => {
     mcpCallProgress.value = null
     console.error('MCP调用失败:', error)
     // 添加错误消息到对话中
@@ -339,11 +340,18 @@ function downloadCode(code: string, language: string = 'txt') {
 // 运行HTML代码
 function runHtmlCode(htmlCode: string, title: string = 'HTML预览') {
   // 使用新的代码运行窗口
-  window.api.openCodeRunner({
-    code: htmlCode,
-    title: title,
-    language: 'html'
-  })
+  if (platformFeatures.supportsWindowControls) {
+    api.openCodeRunner({
+      code: htmlCode,
+      title: title,
+      language: 'html'
+    })
+  } else {
+    // 在移动端或Web端，使用内置预览
+    htmlPreviewContent.value = htmlCode
+    htmlPreviewTitle.value = title
+    showHtmlPreview.value = true
+  }
 }
 
 // 关闭HTML预览
@@ -472,7 +480,7 @@ async function sendMessage() {
         : []
       
       // 通过IPC调用主进程的API请求，传递temperature、maxTokens和选中的MCP服务参数
-      await window.api.ai.callApi(
+      await api.ai.callApi(
         assistantId, 
         apiMessages, 
         conversationId.value, 
@@ -619,7 +627,7 @@ async function stopGeneration() {
   if (isStreaming.value) {
     try {
       // 通知后端停止生成
-      await window.api.ai.stopGeneration(conversationId.value)
+      await api.ai.stopGeneration(conversationId.value)
       
       // 更新前端状态
       isStreaming.value = false

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { api } from '../platform'
 
 export const useConversationStore = defineStore('conversation', () => {
   // 状态
@@ -18,7 +19,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function loadConversations() {
     try {
       loading.value = true
-      const result = await window.api.conversations.getAll()
+      const result = await api.conversations.getAll()
       conversations.value = result
     } catch (error) {
       console.error('加载对话失败:', error)
@@ -32,7 +33,7 @@ export const useConversationStore = defineStore('conversation', () => {
     try {
       loading.value = true
       currentConversationId.value = conversationId
-      const result = await window.api.messages.getByConversation(conversationId)
+      const result = await api.messages.getByConversation(conversationId)
       messages.value = result
     } catch (error) {
       console.error('加载消息失败:', error)
@@ -45,7 +46,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function createConversation(title: string, assistantId: string) {
     try {
       loading.value = true
-      const id = await window.api.conversations.create(title, assistantId)
+      const id = await api.conversations.create(title, assistantId)
       await loadConversations()
       return id
     } catch (error) {
@@ -60,7 +61,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function updateConversationTitle(id: number, title: string) {
     try {
       loading.value = true
-      await window.api.conversations.update(id, title)
+      await api.conversations.update(id, title)
       await loadConversations()
     } catch (error) {
       console.error('更新对话标题失败:', error)
@@ -74,7 +75,7 @@ export const useConversationStore = defineStore('conversation', () => {
     try {
       loading.value = true
       console.log('ConversationStore: updateConversation called with:', { id, data })
-      await window.api.conversations.update(id, data)
+      await api.conversations.update(id, data)
       await loadConversations()
     } catch (error) {
       console.error('更新对话设置失败:', error)
@@ -87,7 +88,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function deleteConversation(id: number) {
     try {
       loading.value = true
-      await window.api.conversations.delete(id)
+      await api.conversations.delete(id)
       if (currentConversationId.value === id) {
         currentConversationId.value = null
         messages.value = []
@@ -105,7 +106,7 @@ export const useConversationStore = defineStore('conversation', () => {
     if (!currentConversationId.value) return null
 
     try {
-      const id = await window.api.messages.add(currentConversationId.value, role, content, toolCalls, toolCallId)
+      const id = await api.messages.add(currentConversationId.value, role, content, toolCalls, toolCallId)
       await loadMessages(currentConversationId.value)
       return id
     } catch (error) {
@@ -128,7 +129,7 @@ export const useConversationStore = defineStore('conversation', () => {
 
     try {
       loading.value = true
-      await window.api.messages.deleteAll(currentConversationId.value)
+      await api.messages.deleteAll(currentConversationId.value)
       messages.value = []
     } catch (error) {
       console.error('清空消息失败:', error)
@@ -141,7 +142,7 @@ export const useConversationStore = defineStore('conversation', () => {
   async function deleteMessage(messageId: number) {
     try {
       loading.value = true
-      await window.api.messages.delete(messageId)
+      await api.messages.delete(messageId)
       // 从本地状态中移除该消息
       messages.value = messages.value.filter(msg => msg.id !== messageId)
     } catch (error) {
