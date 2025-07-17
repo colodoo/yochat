@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useAssistantStore } from '../stores/assistant'
 import { useModelStore } from '../stores/model'
 import { useSettingStore } from '../stores/setting'
+import { Upload, Download, Plus, Bot, Edit3, Trash2 } from 'lucide-vue-next'
 
 const assistantStore = useAssistantStore()
 const modelStore = useModelStore()
@@ -314,13 +315,22 @@ function importConfig() {
       <v-card-title class="d-flex align-center">
         <span class="text-h5">AI助手</span>
         <v-spacer></v-spacer>
-        <v-btn color="secondary" variant="outlined" prepend-icon="mdi-upload" @click="importConfig" class="mr-2">
+        <v-btn color="secondary" variant="outlined" @click="importConfig" class="mr-2">
+          <template v-slot:prepend>
+            <Upload :size="16" />
+          </template>
           导入配置
         </v-btn>
-        <v-btn color="secondary" variant="outlined" prepend-icon="mdi-download" @click="exportConfig" class="mr-2">
+        <v-btn color="secondary" variant="outlined" @click="exportConfig" class="mr-2">
+          <template v-slot:prepend>
+            <Download :size="16" />
+          </template>
           导出配置
         </v-btn>
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
+        <v-btn color="primary" @click="openCreateDialog">
+          <template v-slot:prepend>
+            <Plus :size="16" />
+          </template>
           新建助手
         </v-btn>
       </v-card-title>
@@ -353,7 +363,7 @@ function importConfig() {
               >
                 <v-card-title class="d-flex align-center">
                   <v-avatar color="secondary" class="mr-2">
-                    <v-icon>mdi-robot</v-icon>
+                    <Bot :size="20" />
                   </v-avatar>
                   {{ assistant.name }}
                 </v-card-title>
@@ -385,10 +395,10 @@ function importConfig() {
                   </v-btn>
                   <v-spacer></v-spacer>
                   <v-btn icon @click="openEditDialog(assistant)">
-                    <v-icon>mdi-pencil</v-icon>
+                    <Edit3 :size="20" />
                   </v-btn>
                   <v-btn icon @click="openDeleteDialog(assistant.id)">
-                    <v-icon>mdi-delete</v-icon>
+                    <Trash2 :size="20" />
                   </v-btn>
                 </v-card-actions>
               </v-card>
@@ -399,7 +409,7 @@ function importConfig() {
           <v-row v-else>
             <v-col cols="12" class="text-center">
               <div class="empty-state">
-                <v-icon size="64" color="grey-lighten-1">mdi-robot</v-icon>
+                <Bot :size="64" color="rgb(var(--v-theme-on-surface-variant))" />
                 <p class="text-h6 mt-4">没有助手</p>
                 <p class="text-body-1 text-grey">创建一个AI助手开始聊天</p>
                 <v-btn color="primary" class="mt-4" @click="openCreateDialog">

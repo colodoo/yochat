@@ -8,6 +8,11 @@ import { useSettingStore } from '../stores/setting'
 import { useMcpStore } from '../stores/mcp'
 import { MdPreview, config } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
+import { 
+  Bot, Search, MoreVertical, Edit3, Settings, Trash2, MessageCircle, 
+  User, AlertCircle, Wrench, Zap, CheckCircle, Copy, Download, 
+  Globe, X, Send, Square, ChevronUp, ChevronDown, SearchX 
+} from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -447,6 +452,17 @@ async function sendMessage() {
     await conversationStore.addMessage('user', userMessage)
     await nextTick()
     scrollToBottom()
+    
+    // 检查是否是第一条用户消息，如果是且标题为默认值，则更新标题
+    // 过滤掉系统消息，只计算用户和助手的消息
+    const userAndAssistantMessages = conversationStore.messages.filter(msg => msg.role === 'user' || msg.role === 'assistant')
+    if (userAndAssistantMessages.length === 1 && 
+        conversationStore.currentConversation && 
+        conversationStore.currentConversation.title === '新对话') {
+      // 截取用户消息的前30个字符作为标题
+      const newTitle = userMessage.length > 30 ? userMessage.substring(0, 30) + '...' : userMessage
+      await conversationStore.updateConversationTitle(conversationId.value, newTitle)
+    }
     
     // 获取当前对话关联的助手信息
     if (!conversationStore.currentConversation) {
@@ -991,7 +1007,7 @@ function formatSearchSnippet(snippet: string, query: string) {
               variant="tonal"
               class="mr-2"
             >
-              <v-icon start size="small">mdi-robot</v-icon>
+              <Bot :size="16" class="mr-1" />
               {{ getAssistantName(conversationStore.currentConversation.assistant_id) }}
             </v-chip>
             
@@ -1003,7 +1019,7 @@ function formatSearchSnippet(snippet: string, query: string) {
               @click="openSearchDialog"
               :disabled="conversationStore.messages.length === 0"
             >
-              <v-icon>mdi-magnify</v-icon>
+              <Search :size="20" />
               <v-tooltip activator="parent" location="bottom">
                 搜索聊天记录
               </v-tooltip>
@@ -1012,31 +1028,31 @@ function formatSearchSnippet(snippet: string, query: string) {
             <v-menu>
               <template v-slot:activator="{ props }">
                 <v-btn icon size="small" v-bind="props">
-                  <v-icon>mdi-dots-vertical</v-icon>
+                  <MoreVertical :size="20" />
                 </v-btn>
               </template>
               <v-list density="compact">
                 <v-list-item @click="openEditTitleDialog" density="compact">
                   <template v-slot:prepend>
-                    <v-icon size="small">mdi-pencil</v-icon>
+                    <Edit3 :size="16" />
                   </template>
                   <v-list-item-title class="text-body-2">重命名</v-list-item-title>
                 </v-list-item>
                 <v-list-item @click="openModelSettingsDialog" density="compact">
                   <template v-slot:prepend>
-                    <v-icon size="small">mdi-tune</v-icon>
+                    <Settings :size="16" />
                   </template>
                   <v-list-item-title class="text-body-2">调整参数</v-list-item-title>
                 </v-list-item>
                 <v-list-item @click="clearConversation" density="compact">
                   <template v-slot:prepend>
-                    <v-icon size="small">mdi-delete-sweep</v-icon>
+                    <Trash2 :size="16" />
                   </template>
                   <v-list-item-title class="text-body-2">清空消息</v-list-item-title>
                 </v-list-item>
                 <v-list-item @click="deleteConversation" density="compact">
                   <template v-slot:prepend>
-                    <v-icon size="small" color="error">mdi-delete</v-icon>
+                    <Trash2 :size="16" color="rgb(var(--v-theme-error))" />
                   </template>
                   <v-list-item-title class="text-body-2 text-error">删除对话</v-list-item-title>
                 </v-list-item>
@@ -1051,7 +1067,7 @@ function formatSearchSnippet(snippet: string, query: string) {
     <div class="message-container" ref="messageContainer">
       <template v-if="conversationStore.messages.length === 0">
         <div class="empty-state">
-          <v-icon size="64" color="grey-lighten-1">mdi-chat-outline</v-icon>
+          <MessageCircle :size="64" color="rgb(var(--v-theme-on-surface-variant))" />
           <p>没有消息，开始对话吧</p>
         </div>
       </template>
@@ -1071,10 +1087,9 @@ function formatSearchSnippet(snippet: string, query: string) {
                      message.role === 'system' ? 'error' : 'secondary'" 
               size="36"
             >
-              <v-icon>
-                {{ message.role === 'user' ? 'mdi-account' : 
-                   message.role === 'system' ? 'mdi-alert-circle' : 'mdi-robot' }}
-              </v-icon>
+              <component :is="message.role === 'user' ? User : 
+                             message.role === 'system' ? AlertCircle : Bot" 
+                         :size="20" />
             </v-avatar>
           </div>
           <div class="message-content" :class="{'system-message': message.role === 'system'}">
@@ -1093,7 +1108,7 @@ function formatSearchSnippet(snippet: string, query: string) {
               <v-expansion-panels variant="accordion" class="tool-expansion-panels">
                 <v-expansion-panel>
                   <v-expansion-panel-title class="text-subtitle-2 py-2">
-                    <v-icon size="small" class="mr-2">mdi-tools</v-icon>
+                    <Wrench :size="16" class="mr-2" />
                     工具调用信息
                     <v-chip v-if="message.tool_calls" size="x-small" color="primary" variant="tonal" class="ml-2">
                       {{ message.tool_calls.length }} 个调用
@@ -1105,11 +1120,11 @@ function formatSearchSnippet(snippet: string, query: string) {
                   <v-expansion-panel-text>
                     <v-tabs v-model="toolTabStates[message.id.toString()]" class="tool-tabs">
                       <v-tab v-if="message.tool_calls && message.tool_calls.length > 0" value="calls">
-                        <v-icon size="small" class="mr-1">mdi-function</v-icon>
+                        <Zap :size="16" class="mr-1" />
                         调用参数
                       </v-tab>
                       <v-tab v-if="message.tool_results && message.tool_results.length > 0" value="results">
-                        <v-icon size="small" class="mr-1">mdi-check-circle</v-icon>
+                        <CheckCircle :size="16" class="mr-1" />
                         执行结果
                       </v-tab>
                     </v-tabs>
@@ -1169,7 +1184,7 @@ function formatSearchSnippet(snippet: string, query: string) {
               <v-expansion-panels variant="accordion" class="tool-expansion-panels">
                 <v-expansion-panel>
                   <v-expansion-panel-title class="text-subtitle-2 py-2">
-                    <v-icon size="small" class="mr-2" color="success">mdi-check-circle</v-icon>
+                    <CheckCircle :size="16" class="mr-2" color="rgb(var(--v-theme-success))" />
                     工具执行结果
                     <v-chip v-if="message.tool_call_id" size="x-small" color="secondary" variant="outlined" class="ml-2">
                       {{ message.tool_call_id }}
@@ -1205,7 +1220,7 @@ function formatSearchSnippet(snippet: string, query: string) {
                   @click="copyMessage(message)"
                   class="action-btn"
                 >
-                  <v-icon size="small">mdi-content-copy</v-icon>
+                  <Copy :size="16" />
                   <v-tooltip activator="parent" location="top">复制</v-tooltip>
                 </v-btn>
                 
@@ -1217,7 +1232,7 @@ function formatSearchSnippet(snippet: string, query: string) {
                   @click="deleteMessage(message.id)"
                   class="action-btn"
                 >
-                  <v-icon size="small">mdi-delete</v-icon>
+                  <Trash2 :size="16" />
                   <v-tooltip activator="parent" location="top">删除</v-tooltip>
                 </v-btn>
                 
@@ -1229,7 +1244,7 @@ function formatSearchSnippet(snippet: string, query: string) {
                   @click="saveMessageAsMarkdown(message)"
                   class="action-btn"
                 >
-                  <v-icon size="small">mdi-download</v-icon>
+                  <Download :size="16" />
                   <v-tooltip activator="parent" location="top">保存为Markdown</v-tooltip>
                 </v-btn>
               </div>
@@ -1244,7 +1259,7 @@ function formatSearchSnippet(snippet: string, query: string) {
       <div v-if="showHtmlPreview" class="html-preview-panel">
         <div class="preview-header">
           <div class="preview-title">
-            <v-icon class="mr-2">mdi-web</v-icon>
+            <Globe :size="16" class="mr-2" />
             {{ htmlPreviewTitle }}
           </div>
           <v-btn
@@ -1253,7 +1268,7 @@ function formatSearchSnippet(snippet: string, query: string) {
             variant="text"
             @click="closeHtmlPreview"
           >
-            <v-icon>mdi-close</v-icon>
+            <X :size="20" />
           </v-btn>
         </div>
         <div class="preview-content">
@@ -1291,7 +1306,7 @@ function formatSearchSnippet(snippet: string, query: string) {
             closable
             @click:close="selectedMcpServices = []"
           >
-            <v-icon start size="small">mdi-tools</v-icon>
+            <Wrench :size="16" class="mr-1" />
             {{ selectedMcpServices.length }} 个工具
           </v-chip>
         </div>
@@ -1307,7 +1322,7 @@ function formatSearchSnippet(snippet: string, query: string) {
             @click="openMcpServicesDialog"
             :disabled="sending || isStreaming"
           >
-            <v-icon>mdi-tools</v-icon>
+            <Wrench :size="20" />
             <v-tooltip activator="parent" location="top">选择工具</v-tooltip>
           </v-btn>
           
@@ -1335,7 +1350,7 @@ function formatSearchSnippet(snippet: string, query: string) {
             @click="sendMessage"
             :disabled="!messageInput.trim() || sending"
           >
-            <v-icon>mdi-send</v-icon>
+            <Send :size="20" />
           </v-btn>
           <v-btn
             v-else
@@ -1345,7 +1360,7 @@ function formatSearchSnippet(snippet: string, query: string) {
             class="send-button-right"
             @click="stopGeneration"
           >
-            <v-icon>mdi-stop</v-icon>
+            <Square :size="20" />
           </v-btn>
         </div>
       </div>
@@ -1510,7 +1525,7 @@ function formatSearchSnippet(snippet: string, query: string) {
     <v-dialog v-model="confirmDialog" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-h6">
-          <v-icon class="mr-2" color="warning">mdi-alert-circle</v-icon>
+          <AlertCircle :size="24" color="rgb(var(--v-theme-warning))" class="mr-2" />
           {{ confirmTitle }}
         </v-card-title>
         <v-card-text class="text-body-1 py-4">
@@ -1540,11 +1555,11 @@ function formatSearchSnippet(snippet: string, query: string) {
     <v-dialog v-model="searchDialog" max-width="600px" persistent>
       <v-card>
         <v-card-title class="text-h6 d-flex align-center">
-          <v-icon class="mr-2">mdi-magnify</v-icon>
+          <Search :size="24" class="mr-2" />
           搜索聊天记录
           <v-spacer></v-spacer>
           <v-btn icon size="small" @click="closeSearchDialog">
-            <v-icon>mdi-close</v-icon>
+            <X :size="20" />
           </v-btn>
         </v-card-title>
         
@@ -1553,7 +1568,6 @@ function formatSearchSnippet(snippet: string, query: string) {
           <v-text-field
             v-model="searchQuery"
             label="输入搜索关键词"
-            prepend-inner-icon="mdi-magnify"
             variant="outlined"
             density="compact"
             class="mb-4"
@@ -1561,7 +1575,11 @@ function formatSearchSnippet(snippet: string, query: string) {
             @input="performSearch"
             clearable
             autofocus
-          ></v-text-field>
+          >
+            <template v-slot:prepend-inner>
+              <Search :size="16" />
+            </template>
+          </v-text-field>
           
           <!-- 搜索结果导航 -->
           <div v-if="searchResults.length > 0" class="d-flex align-center mb-4">
@@ -1571,15 +1589,17 @@ function formatSearchSnippet(snippet: string, query: string) {
             
             <v-btn-group density="compact" size="small">
               <v-btn 
-                icon="mdi-chevron-up" 
                 @click="previousSearchResult"
                 :disabled="searchResults.length === 0"
-              ></v-btn>
+              >
+                <ChevronUp :size="16" />
+              </v-btn>
               <v-btn 
-                icon="mdi-chevron-down" 
                 @click="nextSearchResult"
                 :disabled="searchResults.length === 0"
-              ></v-btn>
+              >
+                <ChevronDown :size="16" />
+              </v-btn>
             </v-btn-group>
             
             <v-spacer></v-spacer>
@@ -1610,10 +1630,9 @@ function formatSearchSnippet(snippet: string, query: string) {
                     :color="result.role === 'user' ? 'primary' : 
                            result.role === 'system' ? 'error' : 'secondary'"
                   >
-                    <v-icon size="small">
-                      {{ result.role === 'user' ? 'mdi-account' : 
-                         result.role === 'system' ? 'mdi-alert-circle' : 'mdi-robot' }}
-                    </v-icon>
+                    <component :is="result.role === 'user' ? User : 
+                                   result.role === 'system' ? AlertCircle : Bot" 
+                               :size="14" />
                   </v-avatar>
                 </template>
                 
@@ -1642,13 +1661,13 @@ function formatSearchSnippet(snippet: string, query: string) {
           
           <!-- 无搜索结果 -->
           <div v-else-if="searchQuery && !isSearching" class="text-center py-8">
-            <v-icon size="48" color="grey-lighten-1">mdi-magnify-close</v-icon>
+            <SearchX :size="48" color="rgb(var(--v-theme-on-surface-variant))" />
             <p class="text-body-2 text-medium-emphasis mt-2">未找到匹配的消息</p>
           </div>
           
           <!-- 搜索提示 -->
           <div v-else-if="!searchQuery" class="text-center py-8">
-            <v-icon size="48" color="grey-lighten-1">mdi-magnify</v-icon>
+            <Search :size="48" color="rgb(var(--v-theme-on-surface-variant))" />
             <p class="text-body-2 text-medium-emphasis mt-2">输入关键词搜索聊天记录</p>
           </div>
         </v-card-text>

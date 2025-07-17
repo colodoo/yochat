@@ -6,6 +6,7 @@ import { useAssistantStore } from '../stores/assistant'
 import { useSettingStore } from '../stores/setting'
 import { useModelStore } from '../stores/model'
 import logoIcon from '../assets/icon.png'
+import { Menu, PanelLeftClose, Plus, Trash2, MessageCircle, Brain, Bot, Settings, Edit3, AlertTriangle } from 'lucide-vue-next'
 
 const router = useRouter()
 const conversationStore = useConversationStore()
@@ -333,7 +334,7 @@ const groupedConversations = computed(() => {
           @click="sidebarVisible = !sidebarVisible"
           class="sidebar-toggle-btn"
         >
-          <v-icon>{{ sidebarVisible ? 'mdi-menu-open' : 'mdi-menu' }}</v-icon>
+          <component :is="sidebarVisible ? PanelLeftClose : Menu" :size="20" />
         </v-btn>
         
         <!-- LOGO区域 -->
@@ -347,13 +348,13 @@ const groupedConversations = computed(() => {
       <div class="drag-region"></div>
       
       <div class="window-controls">
-        <v-btn icon size="small" variant="text" @click="minimizeWindow">
-          <v-icon>mdi-window-minimize</v-icon>
+        <v-btn icon variant="text" @click="minimizeWindow" class="window-control-btn">
+          <v-icon>mdi-minus</v-icon>
         </v-btn>
-        <v-btn icon size="small" variant="text" @click="toggleMaximize">
+        <v-btn icon variant="text" @click="toggleMaximize" class="window-control-btn">
           <v-icon>{{ isMaximized ? 'mdi-window-restore' : 'mdi-window-maximize' }}</v-icon>
         </v-btn>
-        <v-btn icon size="small" variant="text" @click="closeWindow">
+        <v-btn icon variant="text" @click="closeWindow" class="window-control-btn close-btn">
           <v-icon>mdi-close</v-icon>
         </v-btn>
       </div>
@@ -382,9 +383,10 @@ const groupedConversations = computed(() => {
             color="primary"
             rounded
             @click="newChatDialog = true" 
-            prepend-icon="mdi-plus" 
+            :prepend-icon="false" 
             class="new-chat-btn"
           >
+            <Plus class="mr-2" :size="20" />
             新建对话
           </v-btn>
         </div>
@@ -402,7 +404,7 @@ const groupedConversations = computed(() => {
             class="clear-all-btn"
             title="清空所有对话"
           >
-            <v-icon>mdi-delete-sweep</v-icon>
+            <Trash2 :size="16" />
           </v-btn>
         </div>
 
@@ -425,8 +427,12 @@ const groupedConversations = computed(() => {
                   :active="conversationStore.currentConversationId === conversation.id"
                   @click="selectConversation(conversation.id)"
                   @contextmenu="showContextMenu($event, conversation)"
-                  prepend-icon="mdi-chat"
+                  :prepend-icon="false"
                   class="text-body-2 conversation-item"
+                >
+                  <template v-slot:prepend>
+                    <MessageCircle class="mr-3" :size="16" />
+                  </template
                   lines="one"
                 ></v-list-item>
               </v-list>
@@ -438,24 +444,36 @@ const groupedConversations = computed(() => {
         <div class="sidebar-footer">
           <v-divider></v-divider>
           <v-list>
-            <v-list-item
-              prepend-icon="mdi-brain"
-              title="模型管理"
-              @click="router.push('/models')"
-              class="sidebar-menu-item"
-            ></v-list-item>
-            <v-list-item
-              prepend-icon="mdi-robot"
-              title="助手管理"
-              @click="router.push('/assistants')"
-              class="sidebar-menu-item"
-            ></v-list-item>
-            <v-list-item
-              prepend-icon="mdi-cog"
-              title="设置"
-              @click="router.push('/settings')"
-              class="sidebar-menu-item"
-            ></v-list-item>
+              <v-list-item
+                :prepend-icon="false"
+                title="模型管理"
+                @click="router.push('/models')"
+                class="sidebar-menu-item"
+              >
+                <template v-slot:prepend>
+                  <Brain class="mr-3" :size="16" />
+                </template>
+              </v-list-item>
+              <v-list-item
+                :prepend-icon="false"
+                title="助手管理"
+                @click="router.push('/assistants')"
+                class="sidebar-menu-item"
+              >
+                <template v-slot:prepend>
+                  <Bot class="mr-3" :size="16" />
+                </template>
+              </v-list-item>
+              <v-list-item
+                :prepend-icon="false"
+                title="设置"
+                @click="router.push('/settings')"
+                class="sidebar-menu-item"
+              >
+                <template v-slot:prepend>
+                  <Settings class="mr-3" :size="16" />
+                </template>
+              </v-list-item>
           </v-list>
         </div>
       </div>
@@ -503,7 +521,7 @@ const groupedConversations = computed(() => {
     <v-dialog v-model="clearAllDialog" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-subtitle-1 d-flex align-center">
-          <v-icon color="warning" class="mr-2">mdi-alert</v-icon>
+          <AlertTriangle color="rgb(var(--v-theme-warning))" class="mr-2" :size="20" />
           确认清空所有对话
         </v-card-title>
         <v-card-text>
@@ -530,19 +548,19 @@ const groupedConversations = computed(() => {
       <v-list density="compact">
         <v-list-item @click="openRenameDialog" density="compact">
           <template v-slot:prepend>
-            <v-icon size="small">mdi-pencil</v-icon>
+            <Edit3 :size="16" />
           </template>
           <v-list-item-title class="text-body-2">重命名</v-list-item-title>
         </v-list-item>
         <v-list-item @click="clearConversationMessages" density="compact">
           <template v-slot:prepend>
-            <v-icon size="small">mdi-delete-sweep</v-icon>
+            <Trash2 :size="16" />
           </template>
           <v-list-item-title class="text-body-2">清空消息</v-list-item-title>
         </v-list-item>
         <v-list-item @click="deleteConversation" density="compact">
           <template v-slot:prepend>
-            <v-icon size="small" color="error">mdi-delete</v-icon>
+            <Trash2 :size="16" color="rgb(var(--v-theme-error))" />
           </template>
           <v-list-item-title class="text-body-2 text-error">删除对话</v-list-item-title>
         </v-list-item>
@@ -575,7 +593,7 @@ const groupedConversations = computed(() => {
     <v-dialog v-model="confirmDialog" max-width="400px" persistent>
       <v-card>
         <v-card-title class="text-subtitle-1 d-flex align-center">
-          <v-icon color="warning" class="mr-2">mdi-alert</v-icon>
+          <AlertTriangle color="rgb(var(--v-theme-warning))" class="mr-2" :size="20" />
           {{ confirmTitle }}
         </v-card-title>
         <v-card-text>
@@ -640,7 +658,7 @@ const groupedConversations = computed(() => {
   position: absolute;
   top: 0;
   left: 45px;
-  right: 100px;
+  right: 135px;
   height: 100%;
   -webkit-app-region: drag;
 }
@@ -652,9 +670,25 @@ const groupedConversations = computed(() => {
 
 .window-controls .v-btn {
   border-radius: 0;
-  height: 32px;
-  width: 32px;
-  min-width: 32px;
+  height: 45px;
+  width: 45px;
+  min-width: 45px;
+}
+
+.window-control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.window-control-btn:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.08);
+}
+
+.close-btn:hover {
+  background-color: #e81123 !important;
+  color: white !important;
 }
 
 /* 应用内容布局 */

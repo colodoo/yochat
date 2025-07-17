@@ -5,6 +5,7 @@ import { useModelStore } from '../stores/model'
 import { useSettingStore } from '../stores/setting'
 import { useRouter } from 'vue-router'
 import { ref, computed, onMounted } from 'vue'
+import { MessageCircle, AlertCircle, Brain, Settings, Bot, Plus } from 'lucide-vue-next'
 
 const assistantStore = useAssistantStore()
 const conversationStore = useConversationStore()
@@ -83,7 +84,7 @@ onMounted(async () => {
       <!-- 欢迎标题 -->
       <div class="welcome-section">
         <div class="welcome-icon">
-          <v-icon size="64" color="primary">mdi-chat</v-icon>
+          <MessageCircle :size="64" color="rgb(var(--v-theme-primary))" />
         </div>
         <h1 class="welcome-title">欢迎使用 YoChat</h1>
       </div>
@@ -93,7 +94,7 @@ onMounted(async () => {
         <!-- 检查模型配置 -->
         <div v-if="!hasModels" class="status-card warning">
           <div class="status-icon">
-            <v-icon size="32" color="warning">mdi-alert-circle</v-icon>
+            <AlertCircle :size="32" color="rgb(var(--v-theme-warning))" />
           </div>
           <div class="status-content">
             <h3>需要配置模型</h3>
@@ -104,7 +105,7 @@ onMounted(async () => {
               to="/models"
               class="action-btn"
             >
-              <v-icon start>mdi-brain</v-icon>
+              <Brain class="mr-2" :size="20" />
               配置模型
             </v-btn>
           </div>
@@ -113,7 +114,7 @@ onMounted(async () => {
         <!-- 检查默认模型 -->
         <div v-else-if="!hasDefaultModel" class="status-card info">
           <div class="status-icon">
-            <v-icon size="32" color="info">mdi-information</v-icon>
+            <AlertCircle :size="32" color="rgb(var(--v-theme-info))" />
           </div>
           <div class="status-content">
             <h3>建议设置默认模型</h3>
@@ -124,7 +125,7 @@ onMounted(async () => {
               to="/models"
               class="action-btn"
             >
-              <v-icon start>mdi-cog</v-icon>
+              <Settings class="mr-2" :size="20" />
               设置默认模型
             </v-btn>
           </div>
@@ -133,7 +134,7 @@ onMounted(async () => {
         <!-- 检查助手配置 -->
         <div v-else-if="assistantStore.assistants.length === 0" class="status-card info">
           <div class="status-icon">
-            <v-icon size="32" color="info">mdi-robot</v-icon>
+            <Bot :size="32" color="rgb(var(--v-theme-info))" />
           </div>
           <div class="status-content">
             <h3>需要创建助手</h3>
@@ -144,7 +145,7 @@ onMounted(async () => {
               to="/assistants"
               class="action-btn"
             >
-              <v-icon start>mdi-robot</v-icon>
+              <Bot class="mr-2" :size="20" />
               创建助手
             </v-btn>
           </div>
@@ -162,7 +163,7 @@ onMounted(async () => {
               @click="newChatDialog = true"
               class="start-chat-btn"
             >
-              <v-icon start size="24">mdi-plus</v-icon>
+              <Plus class="mr-2" :size="24" />
               开始新对话
             </v-btn>
           </div>

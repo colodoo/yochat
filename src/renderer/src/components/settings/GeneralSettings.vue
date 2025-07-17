@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useSettingStore } from '../../stores/setting'
+import { Palette, Type, Power, RefreshCw } from 'lucide-vue-next'
 
 const settingStore = useSettingStore()
 const loading = ref(false)
@@ -99,7 +100,7 @@ async function updateAutoUpdate() {
     <!-- 主题设置 -->
     <v-list-item>
       <template v-slot:prepend>
-        <v-icon>mdi-theme-light-dark</v-icon>
+        <Palette :size="20" />
       </template>
       <v-list-item-title class="text-body-2">主题模式</v-list-item-title>
       <template v-slot:append>
@@ -119,7 +120,7 @@ async function updateAutoUpdate() {
     <!-- 字体大小设置 -->
     <v-list-item>
       <template v-slot:prepend>
-        <v-icon>mdi-format-size</v-icon>
+        <Type :size="20" />
       </template>
       <v-list-item-title class="text-body-2">字体大小</v-list-item-title>
       <template v-slot:append>
@@ -141,7 +142,7 @@ async function updateAutoUpdate() {
     <!-- 自动启动设置 -->
     <v-list-item>
       <template v-slot:prepend>
-        <v-icon>mdi-power</v-icon>
+        <Power :size="20" />
       </template>
       <v-list-item-title class="text-body-2">开机自启动</v-list-item-title>
       <template v-slot:append>
@@ -158,7 +159,7 @@ async function updateAutoUpdate() {
     <!-- 自动更新设置 -->
     <v-list-item>
       <template v-slot:prepend>
-        <v-icon>mdi-update</v-icon>
+        <RefreshCw :size="20" />
       </template>
       <v-list-item-title class="text-body-2">自动更新</v-list-item-title>
       <template v-slot:append>

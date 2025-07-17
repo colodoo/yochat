@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useMcpStore } from '../../stores/mcp'
+import { Puzzle, Plus, Import, Terminal, Globe, Link, Edit3, Trash2 } from 'lucide-vue-next'
 
 const mcpStore = useMcpStore()
 const loading = ref(false)
@@ -312,10 +313,16 @@ async function testMcpConnection(serviceId: string) {
       <v-card-title class="d-flex align-center">
         <span class="text-h6">MCP服务管理</span>
         <v-spacer></v-spacer>
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateMcpDialog" class="mr-2">
-          新建服务
+        <v-btn color="primary" @click="openCreateMcpDialog" class="mr-2">
+          <template v-slot:prepend>
+            <Plus :size="16" />
+          </template>
+          创建服务
         </v-btn>
-        <v-btn color="secondary" prepend-icon="mdi-import" @click="openImportDialog">
+        <v-btn color="secondary" @click="openImportDialog">
+          <template v-slot:prepend>
+            <Import :size="16" />
+          </template>
           导入配置
         </v-btn>
       </v-card-title>
@@ -347,7 +354,8 @@ async function testMcpConnection(serviceId: string) {
               >
                 <v-card-title class="d-flex align-center">
                   <v-avatar color="primary" class="mr-2">
-                    <v-icon>{{ service.type === 'stdio' ? 'mdi-console' : 'mdi-api' }}</v-icon>
+                    <Terminal v-if="service.type === 'stdio'" :size="20" />
+                    <Globe v-else :size="20" />
                   </v-avatar>
                   {{ service.name }}
                   <v-chip
@@ -382,13 +390,13 @@ async function testMcpConnection(serviceId: string) {
                 <v-card-actions>
                   <v-spacer></v-spacer>
                   <v-btn icon @click="testMcpConnection(service.id)" :loading="loading">
-                    <v-icon>mdi-connection</v-icon>
+                    <Link :size="20" />
                   </v-btn>
                   <v-btn icon @click="openEditMcpDialog(service)">
-                    <v-icon>mdi-pencil</v-icon>
+                    <Edit3 :size="20" />
                   </v-btn>
                   <v-btn icon @click="openDeleteMcpDialog(service.id)">
-                    <v-icon>mdi-delete</v-icon>
+                    <Trash2 :size="20" />
                   </v-btn>
                 </v-card-actions>
               </v-card>
@@ -399,7 +407,7 @@ async function testMcpConnection(serviceId: string) {
           <v-row v-else>
             <v-col cols="12" class="text-center">
               <div class="empty-state">
-                <v-icon size="64" color="grey-lighten-1">mdi-puzzle-outline</v-icon>
+                <Puzzle :size="64" color="rgb(var(--v-theme-on-surface-variant))" />
                 <p class="text-h6 mt-4">没有MCP服务</p>
                 <p class="text-body-1 text-grey">创建一个MCP服务以连接外部工具和数据源</p>
                 <div class="d-flex justify-center gap-2 mt-4">

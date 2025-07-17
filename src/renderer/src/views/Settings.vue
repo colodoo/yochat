@@ -4,6 +4,7 @@ import GeneralSettings from '../components/settings/GeneralSettings.vue'
 import McpSettings from '../components/settings/McpSettings.vue'
 import ShortcutSettings from '../components/settings/ShortcutSettings.vue'
 import AboutSettings from '../components/settings/AboutSettings.vue'
+import { Settings, Puzzle, Keyboard, Info } from 'lucide-vue-next'
 
 const snackbar = ref(false)
 const snackbarText = ref('')
@@ -21,10 +22,10 @@ function showSnackbar(text: string) {
 
 // 计算标签页标题
 const tabTitles = computed(() => [
-  { title: '常规设置', icon: 'mdi-cog-outline' },
-  { title: 'MCP配置', icon: 'mdi-puzzle' },
-  { title: '快捷键', icon: 'mdi-keyboard' },
-  { title: '关于', icon: 'mdi-information' }
+  { title: '常规设置', icon: Settings },
+  { title: 'MCP配置', icon: Puzzle },
+  { title: '快捷键', icon: Keyboard },
+  { title: '关于', icon: Info }
 ])
 </script>
 
@@ -43,7 +44,7 @@ const tabTitles = computed(() => [
             class="text-body-2"
           >
             <template v-slot:prepend>
-              <v-icon size="small">{{ tab.icon }}</v-icon>
+              <component :is="tab.icon" :size="16" />
             </template>
             <v-list-item-title>{{ tab.title }}</v-list-item-title>
           </v-list-item>

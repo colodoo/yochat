@@ -60,8 +60,10 @@ export const useConversationStore = defineStore('conversation', () => {
   async function updateConversationTitle(id: number, title: string) {
     try {
       loading.value = true
-      await window.api.conversations.update(id, title)
+      console.log('ConversationStore: updateConversationTitle called with:', { id, title })
+      await window.api.conversations.update(id, { title })
       await loadConversations()
+      console.log('ConversationStore: 对话标题更新完成')
     } catch (error) {
       console.error('更新对话标题失败:', error)
     } finally {

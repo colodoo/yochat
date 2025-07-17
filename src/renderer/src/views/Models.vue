@@ -2,6 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useModelStore } from '../stores/model'
 import { useSettingStore } from '../stores/setting'
+import { CheckCircle, AlertCircle, List, Bot, Cloud, Brain, Search, Settings, Plus, Import, Download, Box, Edit3, Trash2 } from 'lucide-vue-next'
 
 const modelStore = useModelStore()
 const settingStore = useSettingStore()
@@ -84,13 +85,13 @@ watch(() => form.value.model_type, (newType) => {
 
 // 模型类型选项
 const modelTypes = [
-  { value: 'openai', title: 'OpenAI', icon: 'mdi-robot', color: 'green' },
-  { value: 'azure', title: 'Azure OpenAI', icon: 'mdi-microsoft-azure', color: 'blue' },
-  { value: 'anthropic', title: 'Anthropic Claude', icon: 'mdi-brain', color: 'orange' },
-  { value: 'gemini', title: 'Google Gemini', icon: 'mdi-google', color: 'red' },
-  { value: 'ollama', title: 'Ollama', icon: 'mdi-llama', color: 'purple' },
-  { value: 'moonshot', title: 'Moonshot AI', icon: 'mdi-moon-waning-crescent', color: 'indigo' },
-  { value: 'custom', title: '自定义', icon: 'mdi-cog', color: 'grey' }
+  { value: 'openai', title: 'OpenAI', icon: Bot, color: 'green' },
+  { value: 'azure', title: 'Azure OpenAI', icon: Cloud, color: 'blue' },
+  { value: 'anthropic', title: 'Anthropic Claude', icon: Brain, color: 'orange' },
+  { value: 'gemini', title: 'Google Gemini', icon: Search, color: 'red' },
+  { value: 'ollama', title: 'Ollama', icon: Bot, color: 'purple' },
+  { value: 'moonshot', title: 'Moonshot AI', icon: Bot, color: 'indigo' },
+  { value: 'custom', title: '自定义', icon: Settings, color: 'grey' }
 ]
 
 // 根据选中的模型类型过滤模型
@@ -371,7 +372,9 @@ const importConfig = () => {
               color="success"
               v-bind="props"
             >
-              <v-icon start>mdi-check-circle</v-icon>
+              <template v-slot:prepend>
+                <CheckCircle :size="16" />
+              </template>
               已设置默认模型
             </v-chip>
             <v-chip
@@ -380,7 +383,9 @@ const importConfig = () => {
               color="warning"
               v-bind="props"
             >
-              <v-icon start>mdi-alert-circle</v-icon>
+              <template v-slot:prepend>
+                <AlertCircle :size="16" />
+              </template>
               未设置默认模型
             </v-chip>
           </template>
@@ -393,7 +398,7 @@ const importConfig = () => {
       <!-- 左侧模型类型列表 -->
       <v-card class="model-types-panel" variant="outlined">
         <v-card-title class="d-flex align-center">
-          <v-icon class="mr-2">mdi-format-list-bulleted-type</v-icon>
+          <List :size="20" class="mr-2" />
           模型类型
         </v-card-title>
         <v-card-text class="pa-0">
@@ -407,7 +412,7 @@ const importConfig = () => {
             >
               <template v-slot:prepend>
                 <v-avatar :color="modelType.color" size="small">
-                  <v-icon :icon="modelType.icon" size="small"></v-icon>
+                  <component :is="modelType.icon" :size="16" />
                 </v-avatar>
               </template>
               <v-list-item-title>{{ modelType.title }}</v-list-item-title>
@@ -429,17 +434,26 @@ const importConfig = () => {
       <v-card class="models-panel" variant="outlined">
         <v-card-title class="d-flex align-center">
           <v-avatar :color="selectedModelTypeInfo.color" size="small" class="mr-2">
-            <v-icon :icon="selectedModelTypeInfo.icon" size="small"></v-icon>
+            <component :is="selectedModelTypeInfo.icon" :size="16" />
           </v-avatar>
           {{ selectedModelTypeInfo.title }} 模型
           <v-spacer></v-spacer>
-          <v-btn color="info" variant="outlined" class="mr-2" prepend-icon="mdi-import" @click="importConfig">
+          <v-btn color="info" variant="outlined" class="mr-2" @click="importConfig">
+            <template v-slot:prepend>
+              <Import :size="16" />
+            </template>
             导入配置
           </v-btn>
-          <v-btn color="success" variant="outlined" class="mr-2" prepend-icon="mdi-export" @click="exportConfig">
+          <v-btn color="success" variant="outlined" class="mr-2" @click="exportConfig">
+            <template v-slot:prepend>
+              <Download :size="16" />
+            </template>
             导出配置
           </v-btn>
-          <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
+          <v-btn color="primary" @click="openCreateDialog">
+            <template v-slot:prepend>
+              <Plus :size="16" />
+            </template>
             新建模型
           </v-btn>
         </v-card-title>
@@ -468,7 +482,8 @@ const importConfig = () => {
             >
               <v-card-title class="d-flex align-center">
                 <v-avatar :color="model.id === defaultModelId ? 'success' : 'primary'" class="mr-2">
-                  <v-icon>{{ model.id === defaultModelId ? 'mdi-check-circle' : 'mdi-cube-outline' }}</v-icon>
+                  <CheckCircle v-if="model.id === defaultModelId" :size="20" />
+                  <Box v-else :size="20" />
                 </v-avatar>
                 {{ model.name }}
                 <v-chip
@@ -495,17 +510,19 @@ const importConfig = () => {
                   size="small"
                   color="success"
                   variant="text"
-                  prepend-icon="mdi-check-circle"
                   @click="setDefaultModel(model.id)"
                 >
+                  <template v-slot:prepend>
+                    <CheckCircle :size="16" />
+                  </template>
                   设为默认
                 </v-btn>
                 <v-spacer></v-spacer>
                 <v-btn icon @click="openEditDialog(model)">
-                  <v-icon>mdi-pencil</v-icon>
+                  <Edit3 :size="20" />
                 </v-btn>
                 <v-btn icon @click="openDeleteDialog(model.id)">
-                  <v-icon>mdi-delete</v-icon>
+                  <Trash2 :size="20" />
                 </v-btn>
               </v-card-actions>
             </v-card>
@@ -514,7 +531,7 @@ const importConfig = () => {
           <!-- 空状态 -->
           <div v-else class="empty-state">
             <v-avatar :color="selectedModelTypeInfo.color" size="64" class="mb-4">
-              <v-icon :icon="selectedModelTypeInfo.icon" size="32"></v-icon>
+              <component :is="selectedModelTypeInfo.icon" :size="32" />
             </v-avatar>
             <p class="text-h6 mb-2">暂无 {{ selectedModelTypeInfo.title }} 模型</p>
             <p class="text-body-2 text-grey mb-4">创建一个 {{ selectedModelTypeInfo.title }} 模型以便在助手中使用</p>

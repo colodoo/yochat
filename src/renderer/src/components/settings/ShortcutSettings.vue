@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useSettingStore } from '../../stores/setting'
+import { Keyboard } from 'lucide-vue-next'
 
 const settingStore = useSettingStore()
 const loading = ref(false)
@@ -52,7 +53,7 @@ async function updateShortcut() {
     <!-- 迷你窗口快捷键 -->
     <v-list-item>
       <template v-slot:prepend>
-        <v-icon>mdi-keyboard</v-icon>
+        <Keyboard :size="20" />
       </template>
       <v-list-item-title class="text-body-2">迷你窗口快捷键</v-list-item-title>
       <template v-slot:append>
