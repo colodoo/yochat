@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, nextTick, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useConversationStore } from '../stores/conversation'
 import { useAssistantStore } from '../stores/assistant'
@@ -48,6 +48,13 @@ const currentStreamingMessageId = ref<string | null>(null)
 
 // 工具调用tab状态管理
 const toolTabStates = ref<Record<string, string>>({})
+
+// 搜索功能相关
+const searchDialog = ref(false)
+const searchQuery = ref('')
+const searchResults = ref<any[]>([])
+const currentSearchIndex = ref(-1)
+const isSearching = ref(false)
 
 
 // 计算属性
@@ -140,6 +147,9 @@ watch(() => route.params.id, async (newId) => {
   await nextTick()
   scrollToBottom()
 }, { immediate: true })
+
+// 事件监听器移除函数的引用
+let removeEventListeners: (() => void) | null = null
 
 // 初始化数据
 onMounted(async () => {
@@ -257,14 +267,22 @@ onMounted(async () => {
   // 添加代码工具按钮事件监听器
   document.addEventListener('click', handleCodeToolClick)
   
-  // 组件卸载时移除事件监听器
-  return () => {
+  // 保存移除事件监听器的函数
+  removeEventListeners = () => {
     removeStreamListener()
     removeDoneListener()
     removeCancelledListener()
     removeMcpProgressListener()
     removeMcpErrorListener()
     document.removeEventListener('click', handleCodeToolClick)
+  }
+})
+
+// 组件卸载时移除事件监听器
+onUnmounted(() => {
+  if (removeEventListeners) {
+    removeEventListeners()
+    removeEventListeners = null
   }
 })
 
@@ -360,23 +378,48 @@ function handleCodeToolClick(event: Event) {
   
   if (!toolElement) return
   
+  // 防止事件冒泡和默认行为
+  event.preventDefault()
+  event.stopPropagation()
+  
+  // 防止重复点击
+  if (toolElement.dataset.processing === 'true') {
+    return
+  }
+  
+  // 标记为正在处理
+  toolElement.dataset.processing = 'true'
+  
   // 查找代码块容器
   const codeContainer = toolElement.closest('.md-editor-code')
-  if (!codeContainer) return
+  if (!codeContainer) {
+    toolElement.dataset.processing = 'false'
+    return
+  }
   
   // 获取代码内容
   const codeElement = codeContainer.querySelector('code')
-  if (!codeElement) return
+  if (!codeElement) {
+    toolElement.dataset.processing = 'false'
+    return
+  }
   
   const code = codeElement.textContent || ''
   
-  if (toolElement.classList.contains('download-text')) {
-    // 从代码块头部获取语言信息
-    const langElement = codeContainer.querySelector('.md-editor-code-lang')
-    const lang = langElement?.textContent?.trim() || toolElement.dataset.lang || 'txt'
-    downloadCode(code, lang)
-  } else if (toolElement.classList.contains('run-text')) {
-    runHtmlCode(code, 'HTML预览')
+  try {
+    if (toolElement.classList.contains('download-text')) {
+      // 从代码块头部获取语言信息
+      const langElement = codeContainer.querySelector('.md-editor-code-lang')
+      const lang = langElement?.textContent?.trim() || toolElement.dataset.lang || 'txt'
+      downloadCode(code, lang)
+    } else if (toolElement.classList.contains('run-text')) {
+      runHtmlCode(code, 'HTML预览')
+    }
+  } finally {
+    // 延迟重置处理状态，防止快速重复点击
+    setTimeout(() => {
+      toolElement.dataset.processing = 'false'
+    }, 500)
   }
 }
 
@@ -806,6 +849,123 @@ function initToolTabState(messageId: string | number) {
     }
   }
 }
+
+// 搜索功能相关方法
+// 打开搜索对话框
+function openSearchDialog() {
+  searchDialog.value = true
+  searchQuery.value = ''
+  searchResults.value = []
+  currentSearchIndex.value = -1
+}
+
+// 执行搜索
+function performSearch() {
+  if (!searchQuery.value.trim()) {
+    searchResults.value = []
+    currentSearchIndex.value = -1
+    return
+  }
+
+  isSearching.value = true
+  const query = searchQuery.value.toLowerCase().trim()
+  const results: any[] = []
+
+  conversationStore.messages.forEach((message, index) => {
+    if (message.content && message.content.toLowerCase().includes(query)) {
+      // 找到匹配的内容片段
+      const content = message.content
+      const lowerContent = content.toLowerCase()
+      const queryIndex = lowerContent.indexOf(query)
+      
+      // 获取匹配内容的上下文（前后各50个字符）
+      const start = Math.max(0, queryIndex - 50)
+      const end = Math.min(content.length, queryIndex + query.length + 50)
+      const snippet = content.substring(start, end)
+      
+      results.push({
+        messageId: message.id,
+        messageIndex: index,
+        role: message.role,
+        snippet: snippet,
+        matchIndex: queryIndex,
+        createdAt: message.created_at
+      })
+    }
+  })
+
+  searchResults.value = results
+  currentSearchIndex.value = results.length > 0 ? 0 : -1
+  isSearching.value = false
+
+  if (results.length === 0) {
+    showSnackbar('未找到匹配的消息', 'info')
+  } else {
+    showSnackbar(`找到 ${results.length} 条匹配消息`, 'success')
+  }
+}
+
+// 定位到搜索结果
+function goToSearchResult(index: number) {
+  if (index < 0 || index >= searchResults.value.length) return
+  
+  currentSearchIndex.value = index
+  const result = searchResults.value[index]
+  
+  // 找到对应的消息元素并滚动到该位置
+  nextTick(() => {
+    const messageElement = document.querySelector(`[data-message-id="${result.messageId}"]`)
+    if (messageElement) {
+      messageElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      })
+      
+      // 高亮显示该消息
+      messageElement.classList.add('search-highlight')
+      setTimeout(() => {
+        messageElement.classList.remove('search-highlight')
+      }, 3000)
+    }
+    // 关闭搜索对话框
+    closeSearchDialog()
+  })
+}
+
+// 上一个搜索结果
+function previousSearchResult() {
+  if (searchResults.value.length === 0) return
+  const newIndex = currentSearchIndex.value > 0 ? currentSearchIndex.value - 1 : searchResults.value.length - 1
+  goToSearchResult(newIndex)
+}
+
+// 下一个搜索结果
+function nextSearchResult() {
+  if (searchResults.value.length === 0) return
+  const newIndex = currentSearchIndex.value < searchResults.value.length - 1 ? currentSearchIndex.value + 1 : 0
+  goToSearchResult(newIndex)
+}
+
+// 关闭搜索对话框
+function closeSearchDialog() {
+  searchDialog.value = false
+  searchQuery.value = ''
+  searchResults.value = []
+  currentSearchIndex.value = -1
+  
+  // 移除所有高亮
+  document.querySelectorAll('.search-highlight').forEach(el => {
+    el.classList.remove('search-highlight')
+  })
+}
+
+// 格式化搜索结果片段，高亮匹配的文本
+function formatSearchSnippet(snippet: string, query: string) {
+  if (!query.trim()) return snippet
+  
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
+  return snippet.replace(regex, '<mark>$1</mark>')
+}
 </script>
 
 <template>
@@ -834,6 +994,20 @@ function initToolTabState(messageId: string | number) {
               <v-icon start size="small">mdi-robot</v-icon>
               {{ getAssistantName(conversationStore.currentConversation.assistant_id) }}
             </v-chip>
+            
+            <!-- 搜索按钮 -->
+            <v-btn 
+              icon 
+              size="small" 
+              class="mr-1"
+              @click="openSearchDialog"
+              :disabled="conversationStore.messages.length === 0"
+            >
+              <v-icon>mdi-magnify</v-icon>
+              <v-tooltip activator="parent" location="bottom">
+                搜索聊天记录
+              </v-tooltip>
+            </v-btn>
             
             <v-menu>
               <template v-slot:activator="{ props }">
@@ -886,6 +1060,7 @@ function initToolTabState(messageId: string | number) {
         <div 
           v-for="message in conversationStore.messages" 
           :key="message.id"
+          :data-message-id="message.id"
           :class="['message', 
             message.role === 'user' ? 'message-user' : 
             message.role === 'system' ? 'message-system' : 'message-assistant']"
@@ -1360,16 +1535,166 @@ function initToolTabState(messageId: string | number) {
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- 搜索对话框 -->
+    <v-dialog v-model="searchDialog" max-width="600px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 d-flex align-center">
+          <v-icon class="mr-2">mdi-magnify</v-icon>
+          搜索聊天记录
+          <v-spacer></v-spacer>
+          <v-btn icon size="small" @click="closeSearchDialog">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        
+        <v-card-text>
+          <!-- 搜索输入框 -->
+          <v-text-field
+            v-model="searchQuery"
+            label="输入搜索关键词"
+            prepend-inner-icon="mdi-magnify"
+            variant="outlined"
+            density="compact"
+            class="mb-4"
+            @keyup.enter="performSearch"
+            @input="performSearch"
+            clearable
+            autofocus
+          ></v-text-field>
+          
+          <!-- 搜索结果导航 -->
+          <div v-if="searchResults.length > 0" class="d-flex align-center mb-4">
+            <v-chip size="small" color="primary" variant="tonal" class="mr-3">
+              {{ currentSearchIndex + 1 }} / {{ searchResults.length }}
+            </v-chip>
+            
+            <v-btn-group density="compact" size="small">
+              <v-btn 
+                icon="mdi-chevron-up" 
+                @click="previousSearchResult"
+                :disabled="searchResults.length === 0"
+              ></v-btn>
+              <v-btn 
+                icon="mdi-chevron-down" 
+                @click="nextSearchResult"
+                :disabled="searchResults.length === 0"
+              ></v-btn>
+            </v-btn-group>
+            
+            <v-spacer></v-spacer>
+            
+            <v-btn 
+              size="small" 
+              color="primary" 
+              variant="text"
+              @click="closeSearchDialog"
+            >
+              关闭搜索
+            </v-btn>
+          </div>
+          
+          <!-- 搜索结果列表 -->
+          <div v-if="searchResults.length > 0" class="search-results">
+            <v-list density="compact">
+              <v-list-item
+                v-for="(result, index) in searchResults"
+                :key="result.messageId"
+                :class="{ 'bg-primary-lighten-5': index === currentSearchIndex }"
+                @click="goToSearchResult(index)"
+                class="search-result-item"
+              >
+                <template v-slot:prepend>
+                  <v-avatar 
+                    size="24" 
+                    :color="result.role === 'user' ? 'primary' : 
+                           result.role === 'system' ? 'error' : 'secondary'"
+                  >
+                    <v-icon size="small">
+                      {{ result.role === 'user' ? 'mdi-account' : 
+                         result.role === 'system' ? 'mdi-alert-circle' : 'mdi-robot' }}
+                    </v-icon>
+                  </v-avatar>
+                </template>
+                
+                <v-list-item-title class="text-body-2">
+                  <span v-html="formatSearchSnippet(result.snippet, searchQuery)"></span>
+                </v-list-item-title>
+                
+                <v-list-item-subtitle class="text-caption">
+                  {{ new Date(result.createdAt).toLocaleString() }}
+                </v-list-item-subtitle>
+                
+                <template v-slot:append>
+                  <v-chip 
+                    size="x-small" 
+                    :color="result.role === 'user' ? 'primary' : 
+                           result.role === 'system' ? 'error' : 'secondary'"
+                    variant="tonal"
+                  >
+                    {{ result.role === 'user' ? '我' : 
+                       result.role === 'system' ? '系统' : '助手' }}
+                  </v-chip>
+                </template>
+              </v-list-item>
+            </v-list>
+          </div>
+          
+          <!-- 无搜索结果 -->
+          <div v-else-if="searchQuery && !isSearching" class="text-center py-8">
+            <v-icon size="48" color="grey-lighten-1">mdi-magnify-close</v-icon>
+            <p class="text-body-2 text-medium-emphasis mt-2">未找到匹配的消息</p>
+          </div>
+          
+          <!-- 搜索提示 -->
+          <div v-else-if="!searchQuery" class="text-center py-8">
+            <v-icon size="48" color="grey-lighten-1">mdi-magnify</v-icon>
+            <p class="text-body-2 text-medium-emphasis mt-2">输入关键词搜索聊天记录</p>
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
 <style scoped>
-/* 全局防止横向滚动 */
-.chat-container,
-.chat-container * {
-  box-sizing: border-box;
+/* 搜索高亮样式 */
+.search-highlight {
+  background-color: rgba(255, 235, 59, 0.3) !important;
+  border: 2px solid #ffeb3b !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
 }
 
+/* 搜索结果项样式 */
+.search-result-item {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.search-result-item:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+/* 搜索结果中的高亮文本 */
+.search-result-item mark {
+  background-color: #ffeb3b;
+  color: #000;
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+/* 搜索结果列表样式 */
+.search-results {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+/* 当前选中的搜索结果 */
+.bg-primary-lighten-5 {
+  background-color: rgba(33, 150, 243, 0.1) !important;
+}
 .chat-container {
   overflow-x: hidden;
   max-width: 100%;
@@ -1765,7 +2090,6 @@ function initToolTabState(messageId: string | number) {
 /* 通用内容宽度控制 */
 :deep(.md-editor-preview *) {
   max-width: 100%;
-  box-sizing: border-box;
 }
 
 /* 代码块样式优化 */
