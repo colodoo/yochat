@@ -3,7 +3,7 @@ import { Info, Github } from 'lucide-vue-next'
 
 // 打开GitHub链接
 function openGitHubLink() {
-  (window as any).electron.ipcRenderer.send('open-external-link', 'https://github.com/yourusername/yochat')
+  (window as any).electron.ipcRenderer.send('open-external-link', 'https://github.com/colodoo/yochat')
 }
 </script>
 

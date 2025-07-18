@@ -120,6 +120,20 @@ const tabTitles = computed(() => [
   max-height: calc(100vh - 64px);
 }
 
+/* 优化图标和文字间距 */
+.settings-tabs .v-list-item {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.settings-tabs .v-list-item :deep(.v-list-item__prepend) {
+  margin-right: 12px;
+}
+
+.settings-tabs .v-list-item :deep(.v-list-item__prepend > .v-icon) {
+  margin-right: 0;
+}
+
 /* 适配小屏幕 */
 @media (max-width: 600px) {
   .settings-layout {

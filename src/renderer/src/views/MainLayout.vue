@@ -368,8 +368,7 @@ const groupedConversations = computed(() => {
         <div class="pa-2">
           <v-btn 
             block 
-            color="primary"
-            rounded
+            variant="outlined"
             @click="newChatDialog = true" 
             :prepend-icon="false" 
             class="new-chat-btn"
@@ -788,6 +787,26 @@ const groupedConversations = computed(() => {
 .new-chat-btn {
   border-radius: 8px;
   font-weight: 500;
+  border-color: rgba(var(--v-theme-on-surface), 0.2);
+  color: rgba(var(--v-theme-on-surface), 0.8);
+  transition: all 0.2s ease;
+}
+
+.new-chat-btn:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.05);
+  border-color: rgba(var(--v-theme-on-surface), 0.3);
+}
+
+/* 暗黑模式下的新建对话按钮样式 */
+.v-theme--dark .new-chat-btn {
+  border-color: rgba(var(--v-theme-on-surface), 0.15);
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.v-theme--dark .new-chat-btn:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.08);
+  border-color: rgba(var(--v-theme-on-surface), 0.25);
+  color: rgba(var(--v-theme-on-surface), 0.9);
 }
 
 .sidebar-menu-item {

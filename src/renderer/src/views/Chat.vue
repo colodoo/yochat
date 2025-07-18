@@ -11,7 +11,8 @@ import 'md-editor-v3/lib/preview.css'
 import { 
   Bot, Search, MoreVertical, Edit3, Settings, Trash2, MessageCircle, 
   User, AlertCircle, Wrench, Zap, CheckCircle, Copy, Download, 
-  Globe, X, Send, Square, ChevronUp, ChevronDown, SearchX 
+  Globe, X, Send, Square, ChevronUp, ChevronDown, SearchX, 
+  Paperclip, Hash, ArrowUp 
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -1300,71 +1301,86 @@ function formatSearchSnippet(snippet: string, query: string) {
     <!-- 悬浮输入区域 -->
     <div class="floating-input-container">
       <div class="input-wrapper">
-        <!-- 工具选择提示 -->
-        <div v-if="selectedMcpServices.length > 0" class="selected-tools-chip">
-          <v-chip
-            size="small"
-            color="secondary"
-            variant="tonal"
-            closable
-            @click:close="selectedMcpServices = []"
-          >
-            <Wrench :size="16" class="mr-1" />
-            {{ selectedMcpServices.length }} 个工具
-          </v-chip>
-        </div>
-        
         <!-- 输入框容器 -->
         <div class="input-field-container">
-          <!-- 左侧工具按钮 -->
-          <v-btn
-            icon
-            size="small"
-            variant="text"
-            class="tool-button-left"
-            @click="openMcpServicesDialog"
-            :disabled="sending || isStreaming"
-          >
-            <Wrench :size="20" />
-            <v-tooltip activator="parent" location="top">选择工具</v-tooltip>
-          </v-btn>
-          
           <!-- 输入框 -->
-          <v-textarea
-            v-model="messageInput"
-            placeholder="输入消息..."
-            rows="1"
-            auto-grow
-            max-rows="6"
-            hide-details
-            density="compact"
-            variant="outlined"
-            class="message-input"
-            @keydown.enter.exact.prevent="sendMessage"
-          ></v-textarea>
+          <div class="input-area">
+            <v-textarea
+              v-model="messageInput"
+              placeholder="在这里输入消息，按下 ↵ 发送"
+              rows="1"
+              auto-grow
+              max-rows="6"
+              hide-details
+              density="compact"
+              variant="plain"
+              class="message-input"
+              @keydown.enter.exact.prevent="sendMessage"
+            ></v-textarea>
+          </div>
+        </div>
+        
+        <!-- 底部工具栏和发送按钮 -->
+        <div class="bottom-toolbar">
+          <!-- 左侧工具栏 -->
+          <div class="toolbar-left">
+            <div 
+              class="tool-icon"
+              @click="openMcpServicesDialog"
+              :class="{ 'disabled': sending || isStreaming }"
+            >
+              <Paperclip :size="18" />
+              <v-tooltip activator="parent" location="top">附件</v-tooltip>
+            </div>
+            <div 
+              class="tool-icon"
+              @click="openMcpServicesDialog"
+              :class="{ 'disabled': sending || isStreaming }"
+            >
+              <Hash :size="18" />
+              <v-tooltip activator="parent" location="top">话题</v-tooltip>
+            </div>
+            <div 
+              class="tool-icon"
+              @click="openMcpServicesDialog"
+              :class="{ 'disabled': sending || isStreaming }"
+            >
+              <Globe :size="18" />
+              <v-tooltip activator="parent" location="top">网络</v-tooltip>
+            </div>
+            <div 
+              class="tool-icon tool-button"
+              @click="openMcpServicesDialog"
+              :class="{ 
+                'disabled': sending || isStreaming,
+                'active': selectedMcpServices.length > 0
+              }"
+            >
+              <Wrench :size="18" />
+              <span v-if="selectedMcpServices.length > 0" class="tool-count">{{ selectedMcpServices.length }}</span>
+              <v-tooltip activator="parent" location="top">工具{{ selectedMcpServices.length > 0 ? ` (${selectedMcpServices.length})` : '' }}</v-tooltip>
+            </div>
+            <div 
+              class="tool-icon"
+              @click="openMcpServicesDialog"
+              :class="{ 'disabled': sending || isStreaming }"
+            >
+              <Zap :size="18" />
+              <v-tooltip activator="parent" location="top">快捷</v-tooltip>
+            </div>
+          </div>
           
           <!-- 右侧发送按钮 -->
-          <v-btn
-            v-if="!isStreaming"
-            color="primary"
-            icon
-            size="small"
-            class="send-button-right"
-            @click="sendMessage"
-            :disabled="!messageInput.trim() || sending"
-          >
-            <Send :size="20" />
-          </v-btn>
-          <v-btn
-            v-else
-            color="error"
-            icon
-            size="small"
-            class="send-button-right"
-            @click="stopGeneration"
-          >
-            <Square :size="20" />
-          </v-btn>
+          <div class="toolbar-right">
+            <div 
+              v-if="!isStreaming && messageInput.trim()"
+              class="send-button"
+              @click="sendMessage"
+              :class="{ 'disabled': !messageInput.trim() || sending }"
+            >
+              <ArrowUp :size="18" />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2013,21 +2029,18 @@ function formatSearchSnippet(snippet: string, query: string) {
 /* 悬浮输入容器 */
 .floating-input-container {
   position: absolute;
-  bottom: 16px;
+  bottom: 36px;
   left: 50%;
   transform: translateX(-50%);
-  width: calc(100% - 32px);
-  max-width: 800px;
+  width: calc(100% - 36px);
   z-index: 10;
 }
 
 .input-wrapper {
-  background: rgba(var(--v-theme-surface), 0.95);
-  backdrop-filter: blur(10px);
-  border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(var(--v-theme-outline), 0.2);
-  padding: 12px;
+  background: #f5f5f5;
+  border-radius: 20px;
+  border: 1px solid #e0e0e0;
+  padding: 4px;
 }
 
 .selected-tools-chip {
@@ -2039,43 +2052,164 @@ function formatSearchSnippet(snippet: string, query: string) {
 .input-field-container {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  position: relative;
+  padding: 12px 16px;
+}
+
+.bottom-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 12px 16px;
+  border-top: 1px solid rgba(var(--v-theme-outline), 0.1);
+}
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tool-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.tool-icon:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.8);
+}
+
+.tool-icon.disabled {
+  color: rgba(var(--v-theme-on-surface), 0.3);
+  cursor: not-allowed;
+}
+
+.tool-icon.disabled:hover {
+  background-color: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.3);
+}
+
+.tool-button {
   position: relative;
 }
 
-.tool-button-left {
-  flex-shrink: 0;
-  margin-bottom: 4px;
+.tool-button.active {
+  background-color: rgba(var(--v-theme-primary), 0.1);
+  color: rgb(var(--v-theme-primary));
 }
 
-.message-input {
+.tool-button.active:hover {
+  background-color: rgba(var(--v-theme-primary), 0.15);
+  color: rgb(var(--v-theme-primary));
+}
+
+.tool-count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background-color: rgb(var(--v-theme-primary));
+  color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.input-area {
   flex: 1;
   min-width: 0;
 }
 
+.message-input {
+  width: 100%;
+}
+
 .message-input :deep(.v-field) {
-  border-radius: 20px;
+  border: none;
+  box-shadow: none;
+  background: transparent;
 }
 
 .message-input :deep(.v-field__input) {
-  padding: 8px 16px;
-  min-height: 40px;
+  padding: 12px 0;
+  min-height: 48px;
+  max-height: 120px;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-y: auto;
+  resize: none;
 }
 
-.send-button-right {
-  flex-shrink: 0;
-  margin-bottom: 4px;
+.message-input :deep(.v-field__field) {
+  border: none;
+}
+
+.message-input :deep(.v-field__outline) {
+  display: none;
+}
+
+
+
+.send-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: rgb(var(--v-theme-primary));
+  color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.send-button:hover {
+  background-color: rgba(var(--v-theme-primary), 0.8);
+  transform: scale(1.05);
+}
+
+.send-button:active {
+  transform: scale(0.95);
+}
+
+.send-button.disabled {
+  background-color: rgba(var(--v-theme-on-surface), 0.3);
+  cursor: not-allowed;
+}
+
+.send-button.disabled:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.3);
+  transform: none;
 }
 
 /* 为聊天容器添加底部padding，避免被悬浮输入框遮挡 */
 .message-container {
-  padding-bottom: 120px; /* 为悬浮输入框留出空间 */
+  padding-bottom: 140px; /* 为悬浮输入框留出空间 */
 }
 
 /* 暗色主题适配 */
 .v-theme--dark .input-wrapper {
-  background: rgba(var(--v-theme-surface), 0.9);
-  border: 1px solid rgba(var(--v-theme-outline), 0.3);
+  background: #424242;
+  border: 1px solid #616161;
 }
 
 .error-alert {
@@ -2417,6 +2551,36 @@ function formatSearchSnippet(snippet: string, query: string) {
   
   .icon-item {
     padding: 6px;
+  }
+  
+  .toolbar-left {
+    gap: 2px;
+  }
+  
+  .tool-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .send-button {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .input-field-container {
+    padding: 10px 12px;
+  }
+  
+  .bottom-toolbar {
+    padding: 6px 12px 10px 12px;
+  }
+  
+  .tool-count {
+    width: 14px;
+    height: 14px;
+    font-size: 9px;
+    top: -3px;
+    right: -3px;
   }
 }
 </style>
