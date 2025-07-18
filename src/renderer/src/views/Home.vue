@@ -83,9 +83,6 @@ onMounted(async () => {
     <div class="main-content">
       <!-- 欢迎标题 -->
       <div class="welcome-section">
-        <div class="welcome-icon">
-          <MessageCircle :size="64" color="rgb(var(--v-theme-primary))" />
-        </div>
         <h1 class="welcome-title">欢迎使用 YoChat</h1>
       </div>
 
@@ -213,7 +210,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(var(--v-theme-primary), 0.05) 0%, rgba(var(--v-theme-secondary), 0.05) 100%);
+  background: #ffffff;
   padding: 2rem;
 }
 
@@ -225,34 +222,26 @@ onMounted(async () => {
 
 /* 欢迎区域 */
 .welcome-section {
-  margin-bottom: 3rem;
+  margin-bottom: 4rem;
 }
 
 .welcome-icon {
-  margin-bottom: 1.5rem;
-  opacity: 0.9;
+  margin-bottom: 2rem;
 }
 
 .welcome-title {
-  font-size: 3rem;
-  font-weight: 300;
-  color: rgb(var(--v-theme-on-surface));
-  margin-bottom: 0.5rem;
-  letter-spacing: -0.02em;
-}
-
-.welcome-subtitle {
-  font-size: 1.2rem;
-  color: rgb(var(--v-theme-on-surface-variant));
+  font-size: 2.5rem;
+  font-weight: 400;
+  color: #2c3e50;
   margin-bottom: 0;
-  opacity: 0.8;
+  letter-spacing: -0.01em;
 }
 
 /* 操作区域 */
 .action-section {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1.5rem;
 }
 
 /* 状态卡片 */
@@ -261,24 +250,24 @@ onMounted(async () => {
   align-items: flex-start;
   gap: 1.5rem;
   padding: 2rem;
-  border-radius: 16px;
-  background: rgba(var(--v-theme-surface), 0.8);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(var(--v-theme-outline), 0.12);
-  transition: all 0.3s ease;
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
 .status-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border-color: #dee2e6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 .status-card.warning {
-  border-left: 4px solid rgb(var(--v-theme-warning));
+  border-left: 3px solid #f39c12;
 }
 
 .status-card.info {
-  border-left: 4px solid rgb(var(--v-theme-info));
+  border-left: 3px solid #3498db;
 }
 
 .status-icon {
@@ -292,67 +281,68 @@ onMounted(async () => {
 }
 
 .status-content h3 {
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-weight: 500;
-  color: rgb(var(--v-theme-on-surface));
+  color: #2c3e50;
   margin-bottom: 0.5rem;
 }
 
 .status-content p {
-  color: rgb(var(--v-theme-on-surface-variant));
+  color: #6c757d;
   margin-bottom: 1.5rem;
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 0.95rem;
 }
 
 .action-btn {
-  border-radius: 12px;
+  border-radius: 6px;
   font-weight: 500;
   text-transform: none;
-  letter-spacing: 0.25px;
-  box-shadow: 0 2px 8px rgba(var(--v-theme-primary), 0.2);
+  letter-spacing: 0;
+  box-shadow: none;
+  height: 40px;
 }
 
 .action-btn:hover {
-  box-shadow: 0 4px 16px rgba(var(--v-theme-primary), 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* 就绪区域 */
 .ready-section {
   padding: 3rem 2rem;
-  border-radius: 20px;
-  background: linear-gradient(135deg, rgba(var(--v-theme-primary), 0.08) 0%, rgba(var(--v-theme-secondary), 0.08) 100%);
-  border: 1px solid rgba(var(--v-theme-primary), 0.2);
+  border-radius: 8px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
 }
 
 .ready-content h3 {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 500;
-  color: rgb(var(--v-theme-on-surface));
+  color: #2c3e50;
   margin-bottom: 1rem;
 }
 
 .ready-content p {
-  color: rgb(var(--v-theme-on-surface-variant));
+  color: #6c757d;
   margin-bottom: 2rem;
-  font-size: 1.1rem;
-  line-height: 1.6;
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .start-chat-btn {
-  border-radius: 16px;
-  font-weight: 600;
+  border-radius: 6px;
+  font-weight: 500;
   text-transform: none;
-  letter-spacing: 0.5px;
-  height: 64px;
-  font-size: 1.2rem;
-  padding: 0 3rem;
-  box-shadow: 0 4px 16px rgba(var(--v-theme-primary), 0.3);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0;
+  height: 48px;
+  font-size: 1rem;
+  padding: 0 2rem;
+  box-shadow: none;
+  transition: all 0.2s ease;
 }
 
 .start-chat-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(var(--v-theme-primary), 0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* 响应式设计 */
@@ -362,11 +352,7 @@ onMounted(async () => {
   }
   
   .welcome-title {
-    font-size: 2.5rem;
-  }
-  
-  .welcome-subtitle {
-    font-size: 1.1rem;
+    font-size: 2rem;
   }
   
   .status-card {
@@ -386,14 +372,14 @@ onMounted(async () => {
   
   .start-chat-btn {
     width: 100%;
-    height: 56px;
-    font-size: 1.1rem;
+    height: 44px;
+    font-size: 0.95rem;
   }
 }
 
 @media (max-width: 480px) {
   .welcome-title {
-    font-size: 2rem;
+    font-size: 1.8rem;
   }
   
   .status-card {

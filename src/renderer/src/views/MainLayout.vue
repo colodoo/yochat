@@ -57,18 +57,6 @@ onMounted(async () => {
   // 加载对话列表
   await conversationStore.loadConversations()
   
-  // 检查应用状态并决定跳转
-  if (modelStore.models.length === 0) {
-    // 如果没有模型配置，优先跳转到模型配置页面
-    router.push('/models')
-  } else if (assistantStore.assistants.length === 0) {
-    // 如果有模型但没有助手，跳转到助手设置页面
-    router.push('/assistants')
-  } else if (router.currentRoute.value.path === '/') {
-    // 如果在首页，保持在首页，让用户看到欢迎界面
-    // 不做任何跳转
-  }
-  
   // 初始化窗口状态
   await checkMaximized()
   
