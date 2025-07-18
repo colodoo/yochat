@@ -869,6 +869,11 @@ function initToolTabState(messageId: string | number) {
 // 搜索功能相关方法
 // 打开搜索对话框
 function openSearchDialog() {
+  // 检查是否有消息可搜索
+  if (conversationStore.messages.length === 0) {
+    return
+  }
+  
   searchDialog.value = true
   searchQuery.value = ''
   searchResults.value = []
@@ -1011,25 +1016,23 @@ function formatSearchSnippet(snippet: string, query: string) {
               {{ getAssistantName(conversationStore.currentConversation.assistant_id) }}
             </v-chip>
             
-            <!-- 搜索按钮 -->
-            <v-btn 
-              icon 
-              size="small" 
-              class="mr-1"
+            <!-- 搜索图标 -->
+            <div 
+              class="icon-item mr-3"
               @click="openSearchDialog"
-              :disabled="conversationStore.messages.length === 0"
+              :class="{ 'icon-disabled': conversationStore.messages.length === 0 }"
             >
               <Search :size="20" />
               <v-tooltip activator="parent" location="bottom">
                 搜索聊天记录
               </v-tooltip>
-            </v-btn>
+            </div>
             
             <v-menu>
               <template v-slot:activator="{ props }">
-                <v-btn icon size="small" v-bind="props">
+                <div class="icon-item" v-bind="props">
                   <MoreVertical :size="20" />
-                </v-btn>
+                </div>
               </template>
               <v-list density="compact">
                 <v-list-item @click="openEditTitleDialog" density="compact">
@@ -2361,6 +2364,38 @@ function formatSearchSnippet(snippet: string, query: string) {
 
 
 
+/* 图标陈列样式 */
+.icon-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: rgba(var(--v-theme-on-surface), 0.7);
+}
+
+.icon-item:hover {
+  background-color: rgba(var(--v-theme-on-surface), 0.08);
+  color: rgba(var(--v-theme-on-surface), 0.9);
+}
+
+.icon-item:active {
+  background-color: rgba(var(--v-theme-on-surface), 0.12);
+  transform: scale(0.95);
+}
+
+.icon-item.icon-disabled {
+  color: rgba(var(--v-theme-on-surface), 0.3);
+  cursor: not-allowed;
+}
+
+.icon-item.icon-disabled:hover {
+  background-color: transparent;
+  color: rgba(var(--v-theme-on-surface), 0.3);
+}
+
 /* 适配小屏幕 */
 @media (max-width: 600px) {
   .message {
@@ -2378,6 +2413,10 @@ function formatSearchSnippet(snippet: string, query: string) {
   .tool-arguments pre,
   .tool-result-card pre {
     font-size: 0.7rem;
+  }
+  
+  .icon-item {
+    padding: 6px;
   }
 }
 </style>

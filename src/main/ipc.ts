@@ -25,6 +25,8 @@ const agentLogger = createLogger('Agent');
 
 // IP检测和环境配置相关函数
 let userIpInfo: { isChina: boolean; ip: string } | null = null;
+// 全局环境变量配置缓存
+let globalEnvConfig: Record<string, string> = {};
 
 // 检测用户IP是否为国内IP
 async function detectUserIP(): Promise<{ isChina: boolean; ip: string }> {
@@ -94,74 +96,49 @@ async function detectUserIP(): Promise<{ isChina: boolean; ip: string }> {
   }
 }
 
-// 配置uv国内源
-async function configureUvChinaSource(env: Record<string, string>): Promise<Record<string, string>> {
-  try {
-    const ipInfo = await detectUserIP();
-    
-    if (ipInfo.isChina) {
-      mcpLogger.info('检测到国内IP，配置uv使用清华源');
-      
-      // 设置uv的国内源环境变量
-      const updatedEnv = {
-        ...env,
-        'UV_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
-        'UV_EXTRA_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
-        'PIP_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
-        'PIP_TRUSTED_HOST': 'pypi.tuna.tsinghua.edu.cn'
-      };
-      
-      mcpLogger.info('已配置uv和pip使用清华源');
-      return updatedEnv;
-    } else {
-      mcpLogger.info('检测到海外IP，使用默认源');
-      return env;
-    }
-  } catch (error) {
-    mcpLogger.warn('配置uv源失败，使用默认环境:', error);
-    return env;
-  }
-}
 
-// 检查并配置包管理器源
-async function configurePackageManagerSources(env: Record<string, string>, command: string): Promise<Record<string, string>> {
+
+// 初始化全局环境配置（应用启动时调用一次）
+async function initializeGlobalEnvConfig(): Promise<void> {
   try {
     const ipInfo = await detectUserIP();
     
     if (!ipInfo.isChina) {
-      return env;
+      mcpLogger.info('检测到海外IP，使用默认源');
+      globalEnvConfig = {};
+      return;
     }
     
-    mcpLogger.info(`检测到国内IP，为命令 ${command} 配置国内源`);
+    mcpLogger.info('检测到国内IP，配置全局国内源');
     
-    let updatedEnv = { ...env };
+    // 配置所有包管理器的国内源
+    globalEnvConfig = {
+      // Python/uv源配置
+      'UV_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
+      'UV_EXTRA_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
+      'PIP_INDEX_URL': 'https://pypi.tuna.tsinghua.edu.cn/simple',
+      'PIP_TRUSTED_HOST': 'pypi.tuna.tsinghua.edu.cn',
+      // npm/yarn/pnpm源配置
+      'NPM_CONFIG_REGISTRY': 'https://registry.npmmirror.com',
+      'YARN_REGISTRY': 'https://registry.npmmirror.com',
+      // Go模块代理配置
+      'GOPROXY': 'https://goproxy.cn,direct',
+      'GOSUMDB': 'sum.golang.google.cn'
+    };
     
-    // 根据命令类型配置相应的源
-    if (command.includes('uv') || command.includes('pip')) {
-      updatedEnv = await configureUvChinaSource(updatedEnv);
-    } else if (command.includes('npm') || command.includes('yarn') || command.includes('pnpm')) {
-      // 配置npm国内源
-      updatedEnv = {
-        ...updatedEnv,
-        'NPM_CONFIG_REGISTRY': 'https://registry.npmmirror.com',
-        'YARN_REGISTRY': 'https://registry.npmmirror.com'
-      };
-      mcpLogger.info('已配置npm/yarn使用国内源');
-    } else if (command.includes('go')) {
-      // 配置Go模块代理
-      updatedEnv = {
-        ...updatedEnv,
-        'GOPROXY': 'https://goproxy.cn,direct',
-        'GOSUMDB': 'sum.golang.google.cn'
-      };
-      mcpLogger.info('已配置Go使用国内代理');
-    }
-    
-    return updatedEnv;
+    mcpLogger.info('全局环境配置初始化完成');
   } catch (error) {
-    mcpLogger.warn('配置包管理器源失败，使用默认环境:', error);
-    return env;
+    mcpLogger.warn('初始化全局环境配置失败，使用默认环境:', error);
+    globalEnvConfig = {};
   }
+}
+
+// 获取配置好的环境变量（替代原来的configurePackageManagerSources）
+function getConfiguredEnv(baseEnv: Record<string, string>): Record<string, string> {
+  return {
+    ...baseEnv,
+    ...globalEnvConfig
+  };
 }
 
 // 新的MCP客户端管理器 - 基于LangChain MCP适配器
@@ -206,9 +183,8 @@ class LangChainMcpManager {
             }
           }
           
-          // 根据命令配置包管理器源
-          const command = service.command || '';
-          env = await configurePackageManagerSources(env, command);
+          // 使用全局配置的环境变量
+          env = getConfiguredEnv(env);
           
           mcpServers[serverKey] = {
             transport: 'stdio',
@@ -362,9 +338,8 @@ class McpClientPool {
           }
         }
         
-        // 根据命令配置包管理器源
-        const command = service.command || '';
-        env = await configurePackageManagerSources(env, command);
+        // 使用全局配置的环境变量
+        env = getConfiguredEnv(env);
         
         mcpLogger.info(`创建MCP客户端连接: ${service.command} ${args.join(' ')}`);
         if (service.env) {
@@ -1897,6 +1872,32 @@ ipcMain.handle('stop-generation', async (_, conversationId: number) => {
   }
 });
 
+// 初始化全局环境配置
+ipcMain.handle('initialize-global-env', async () => {
+  try {
+    ipcLogger.info('开始初始化全局环境配置');
+    await initializeGlobalEnvConfig();
+    
+    const result = {
+      success: true,
+      ipInfo: userIpInfo,
+      globalEnvConfig,
+      message: userIpInfo?.isChina ? '检测到国内IP，已配置国内源' : '检测到海外IP，使用默认源'
+    };
+    
+    ipcLogger.info('全局环境配置初始化完成:', result);
+    return result;
+    
+  } catch (error) {
+    ipcLogger.error('全局环境配置初始化失败:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: '全局环境配置初始化失败'
+    };
+  }
+});
+
 // 测试IP检测和源配置
 ipcMain.handle('test-ip-detection', async () => {
   try {
@@ -1905,33 +1906,21 @@ ipcMain.handle('test-ip-detection', async () => {
     // 检测IP
     const ipInfo = await detectUserIP();
     
-    // 测试不同包管理器的源配置
-    const testCommands = ['uv', 'pip', 'npm', 'yarn', 'go'];
-    const sourceConfigs = {};
+    // 获取当前全局环境配置
+    const baseEnv = { ...process.env };
+    const configuredEnv = getConfiguredEnv(baseEnv);
     
-    for (const command of testCommands) {
-      const baseEnv = { ...process.env };
-      const configuredEnv = await configurePackageManagerSources(baseEnv, command);
-      
-      // 提取相关的源配置环境变量
-      const relevantEnvVars = {};
-      Object.keys(configuredEnv).forEach(key => {
-        if (key.includes('INDEX') || key.includes('REGISTRY') || key.includes('PROXY') || key.includes('TRUSTED')) {
-          if (configuredEnv[key] !== baseEnv[key]) {
-            relevantEnvVars[key] = configuredEnv[key];
-          }
-        }
-      });
-      
-      if (Object.keys(relevantEnvVars).length > 0) {
-        sourceConfigs[command] = relevantEnvVars;
-      }
-    }
+    // 提取相关的源配置环境变量
+    const sourceConfigs = {};
+    Object.keys(globalEnvConfig).forEach(key => {
+      sourceConfigs[key] = globalEnvConfig[key];
+    });
     
     const result = {
       success: true,
       ipInfo,
       sourceConfigs,
+      globalEnvConfig,
       message: ipInfo.isChina ? '检测到国内IP，已配置国内源' : '检测到海外IP，使用默认源'
     };
     
@@ -1948,14 +1937,32 @@ ipcMain.handle('test-ip-detection', async () => {
   }
 });
 
-// 重置IP检测缓存
+// 重置IP检测缓存和全局环境配置
 ipcMain.handle('reset-ip-cache', async () => {
   try {
     userIpInfo = null;
-    ipcLogger.info('IP检测缓存已重置');
-    return { success: true, message: 'IP检测缓存已重置' };
+    globalEnvConfig = {};
+    ipcLogger.info('IP检测缓存和全局环境配置已重置');
+    return { success: true, message: 'IP检测缓存和全局环境配置已重置' };
   } catch (error) {
     ipcLogger.error('重置IP检测缓存失败:', error);
     return { success: false, error: error.message };
   }
 });
+
+// 内部初始化全局环境配置（应用启动时调用）
+ipcMain.on('initialize-global-env-internal', async () => {
+  try {
+    ipcLogger.info('应用启动时初始化全局环境配置');
+    await initializeGlobalEnvConfig();
+    ipcLogger.info('全局环境配置初始化完成', { 
+      isChina: userIpInfo?.isChina, 
+      configCount: Object.keys(globalEnvConfig).length 
+    });
+  } catch (error) {
+    ipcLogger.error('应用启动时初始化全局环境配置失败:', error);
+  }
+});
+
+// 导出函数供其他模块使用
+export { initializeGlobalEnvConfig };

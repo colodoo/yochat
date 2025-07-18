@@ -196,6 +196,11 @@ app.whenReady().then(() => {
   appLogger.info('设置IPC处理程序')
   setupIPC()
 
+  // 初始化全局环境配置
+  appLogger.info('初始化全局环境配置')
+  // 异步初始化，不阻塞应用启动
+  ipcMain.emit('initialize-global-env-internal')
+
   // 创建主窗口
   appLogger.info('创建主窗口')
   createWindow()
