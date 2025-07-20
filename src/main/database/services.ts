@@ -344,6 +344,92 @@ export const settingService = {
   }
 };
 
+// 笔记相关服务
+export const noteService = {
+  // 获取所有笔记
+  getAllNotes: () => {
+    return db.prepare('SELECT * FROM notes ORDER BY updated_at DESC').all();
+  },
+
+  // 获取单个笔记
+  getNote: (id: string) => {
+    return db.prepare('SELECT * FROM notes WHERE id = ?').get(id);
+  },
+
+  // 创建新笔记
+  createNote: (note: {
+    title: string;
+    content: string;
+    tags?: string;
+  }) => {
+    const id = uuidv4();
+    const {
+      title,
+      content,
+      tags = ''
+    } = note;
+
+    db.prepare(
+      'INSERT INTO notes (id, title, content, tags) VALUES (?, ?, ?, ?)'
+    ).run(id, title, content, tags);
+
+    return id;
+  },
+
+  // 更新笔记
+  updateNote: (id: string, note: {
+    title?: string;
+    content?: string;
+    tags?: string;
+  }) => {
+    const existingNote = db.prepare('SELECT * FROM notes WHERE id = ?').get(id);
+    if (!existingNote) {
+      return false;
+    }
+
+    const updatedNote = { ...existingNote, ...note };
+
+    return db
+      .prepare(
+        'UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      )
+      .run(
+        updatedNote.title,
+        updatedNote.content,
+        updatedNote.tags,
+        id
+      );
+  },
+
+  // 删除笔记
+  deleteNote: (id: string) => {
+    return db.prepare('DELETE FROM notes WHERE id = ?').run(id);
+  },
+
+  // 追加内容到笔记
+  appendToNote: (id: string, content: string) => {
+    const existingNote = db.prepare('SELECT * FROM notes WHERE id = ?').get(id);
+    if (!existingNote) {
+      return false;
+    }
+
+    const newContent = existingNote.content + '\n\n' + content;
+    return db
+      .prepare(
+        'UPDATE notes SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+      )
+      .run(newContent, id);
+  },
+
+  // 搜索笔记
+  searchNotes: (query: string) => {
+    const searchPattern = `%${query}%`;
+    return db.prepare(
+      'SELECT * FROM notes WHERE title LIKE ? OR content LIKE ? OR tags LIKE ? ORDER BY updated_at DESC'
+    ).all(searchPattern, searchPattern, searchPattern);
+  }
+};
+
 // MCP服务相关服务
 export const mcpService = {
   // 获取所有MCP服务

@@ -62,6 +62,24 @@ const searchResults = ref<any[]>([])
 const currentSearchIndex = ref(-1)
 const isSearching = ref(false)
 
+// 笔记保存相关
+const saveNoteDialog = ref(false)
+const noteTitle = ref('')
+const noteContent = ref('')
+const saveMode = ref('new') // 'new' 或 'append'
+const selectedNoteId = ref('')
+const existingNotes = ref<any[]>([])
+const currentSaveMessage = ref<any>(null)
+
+// 右键菜单相关
+const showContextMenu = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const selectedText = ref('')
+const selectedMarkdownText = ref('')
+const selectedMessageId = ref<string | null>(null)
+const contextMenuTarget = ref(null)
+
 
 // 计算属性
 const conversationId = computed(() => Number(route.params.id))
@@ -273,6 +291,14 @@ onMounted(async () => {
   // 添加代码工具按钮事件监听器
   document.addEventListener('click', handleCodeToolClick)
   
+  // 添加全局点击事件监听器来隐藏右键菜单
+  const handleGlobalClick = (event: MouseEvent) => {
+    if (showContextMenu.value) {
+      hideContextMenu()
+    }
+  }
+  document.addEventListener('click', handleGlobalClick)
+  
   // 保存移除事件监听器的函数
   removeEventListeners = () => {
     removeStreamListener()
@@ -281,6 +307,7 @@ onMounted(async () => {
     removeMcpProgressListener()
     removeMcpErrorListener()
     document.removeEventListener('click', handleCodeToolClick)
+    document.removeEventListener('click', handleGlobalClick)
   }
 })
 
@@ -988,6 +1015,296 @@ function formatSearchSnippet(snippet: string, query: string) {
   const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi')
   return snippet.replace(regex, '<mark>$1</mark>')
 }
+
+// 笔记保存相关方法
+// 打开保存笔记对话框
+async function openSaveNoteDialog(message: any) {
+  currentSaveMessage.value = message
+  
+  // 加载现有笔记列表
+  try {
+    existingNotes.value = await window.api.notes.getAll()
+  } catch (error) {
+    console.error('加载笔记列表失败:', error)
+    existingNotes.value = []
+  }
+  
+  // 生成默认内容
+  const roleName = message.role === 'user' ? '我' : 
+                  message.role === 'system' ? '系统' : 
+                  (conversationStore.currentConversation ? getAssistantName(conversationStore.currentConversation.assistant_id) : '助手')
+  
+  noteTitle.value = `${roleName} - ${new Date(message.created_at).toLocaleString()}`
+  noteContent.value = generateNoteContent(message)
+  saveMode.value = 'new'
+  selectedNoteId.value = ''
+  
+  saveNoteDialog.value = true
+}
+
+// 生成笔记内容
+function generateNoteContent(message: any) {
+  let content = ''
+  
+  const roleName = message.role === 'user' ? '我' : 
+                  message.role === 'system' ? '系统' : 
+                  (conversationStore.currentConversation ? getAssistantName(conversationStore.currentConversation.assistant_id) : '助手')
+  
+  content += `**${roleName}** - ${new Date(message.created_at).toLocaleString()}\n\n`
+  
+  // 添加工具调用信息
+  if (message.tool_calls && message.tool_calls.length > 0) {
+    content += '**工具调用:**\n'
+    for (const toolCall of message.tool_calls) {
+      content += `- ${toolCall.function.name}\n`
+      if (toolCall.function.arguments) {
+        const args = typeof toolCall.function.arguments === 'string' 
+          ? JSON.stringify(JSON.parse(toolCall.function.arguments), null, 2)
+          : JSON.stringify(toolCall.function.arguments, null, 2)
+        content += `  参数: \`\`\`json\n${args}\n\`\`\`\n`
+      }
+    }
+    content += '\n'
+  }
+  
+  // 添加工具执行结果
+  if (message.role === 'tool') {
+    content += '**工具执行结果:**\n'
+    if (message.tool_call_id) {
+      content += `工具调用ID: ${message.tool_call_id}\n`
+    }
+    content += `\`\`\`\n${message.content}\n\`\`\`\n\n`
+  } else if (message.content) {
+    content += `**内容:**\n${message.content}\n\n`
+  }
+  
+  return content
+}
+
+// 保存笔记
+async function saveNote() {
+  try {
+    // 验证输入
+    if (!noteTitle.value.trim()) {
+      showSnackbar('请输入笔记标题', 'error')
+      return
+    }
+    
+    if (!noteContent.value.trim()) {
+      showSnackbar('请输入笔记内容', 'error')
+      return
+    }
+    
+    if (saveMode.value === 'new') {
+      // 创建新笔记
+      await window.api.notes.create(noteTitle.value.trim(), noteContent.value.trim())
+      showSnackbar('笔记创建成功', 'success')
+    } else if (saveMode.value === 'append' && selectedNoteId.value) {
+      // 追加到现有笔记
+      await window.api.notes.appendTo(selectedNoteId.value, '\n\n---\n\n' + noteContent.value.trim())
+      showSnackbar('内容已追加到笔记', 'success')
+    }
+    
+    saveNoteDialog.value = false
+  } catch (error) {
+    console.error('保存笔记失败:', error)
+    showSnackbar('保存笔记失败', 'error')
+  }
+}
+
+// 关闭保存笔记对话框
+function closeSaveNoteDialog() {
+  saveNoteDialog.value = false
+  noteTitle.value = ''
+  noteContent.value = ''
+  saveMode.value = 'new'
+  selectedNoteId.value = ''
+  currentSaveMessage.value = null
+}
+
+// 文本选择和右键菜单相关方法
+// 处理文本选择
+function handleTextSelection() {
+  const selection = window.getSelection()
+  if (selection && selection.toString().trim()) {
+    selectedText.value = selection.toString().trim()
+  } else {
+    selectedText.value = ''
+  }
+}
+
+// 显示右键菜单
+function showContextMenuHandler(event: MouseEvent) {
+  event.preventDefault()
+  
+  // 获取选中的文本
+  const selection = window.getSelection()
+  if (!selection || !selection.toString().trim()) {
+    return // 没有选中文本，不显示菜单
+  }
+  
+  selectedText.value = selection.toString().trim()
+  
+  // 查找包含选中文本的消息元素
+  let messageElement = event.target as HTMLElement
+  while (messageElement && !messageElement.hasAttribute('data-message-id')) {
+    messageElement = messageElement.parentElement as HTMLElement
+  }
+  
+  if (messageElement) {
+    const messageId = messageElement.getAttribute('data-message-id')
+    selectedMessageId.value = messageId
+    
+    // 从消息数据中获取原始markdown内容
+    const message = conversationStore.messages.find(msg => msg.id.toString() === messageId)
+    if (message && message.content) {
+      // 获取选中文本在原始markdown中的对应部分
+      selectedMarkdownText.value = getSelectedMarkdownText(message.content, selectedText.value)
+    } else {
+      selectedMarkdownText.value = selectedText.value
+    }
+  } else {
+    selectedMarkdownText.value = selectedText.value
+    selectedMessageId.value = null
+  }
+  
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuTarget.value = event.target
+  showContextMenu.value = true
+}
+
+// 获取选中文本在原始markdown中的对应部分
+function getSelectedMarkdownText(originalMarkdown: string, selectedRenderedText: string): string {
+  // 如果选中的文本很短，直接返回
+  if (selectedRenderedText.length < 10) {
+    return selectedRenderedText
+  }
+  
+  // 尝试在原始markdown中找到匹配的文本
+  // 首先尝试直接匹配
+  if (originalMarkdown.includes(selectedRenderedText)) {
+    return selectedRenderedText
+  }
+  
+  // 如果直接匹配失败，尝试更智能的匹配
+  // 移除markdown语法后进行匹配
+  const cleanMarkdown = originalMarkdown
+    .replace(/\*\*(.*?)\*\*/g, '$1') // 移除粗体
+    .replace(/\*(.*?)\*/g, '$1')     // 移除斜体
+    .replace(/`(.*?)`/g, '$1')      // 移除行内代码
+    .replace(/\[(.*?)\]\(.*?\)/g, '$1') // 移除链接，保留文本
+    .replace(/#{1,6}\s+/g, '')      // 移除标题标记
+    .replace(/^\s*[-*+]\s+/gm, '')  // 移除列表标记
+    .replace(/^\s*\d+\.\s+/gm, '') // 移除有序列表标记
+  
+  // 在清理后的文本中查找选中内容的位置
+  const selectedIndex = cleanMarkdown.indexOf(selectedRenderedText)
+  if (selectedIndex !== -1) {
+    // 找到匹配位置，尝试在原始markdown中找到对应的区域
+    // 这是一个简化的实现，可能需要更复杂的逻辑来处理所有情况
+    const beforeText = cleanMarkdown.substring(0, selectedIndex)
+    const afterText = cleanMarkdown.substring(selectedIndex + selectedRenderedText.length)
+    
+    // 计算在原始markdown中的大致位置
+    let markdownIndex = 0
+    let cleanIndex = 0
+    
+    // 找到开始位置
+    while (cleanIndex < selectedIndex && markdownIndex < originalMarkdown.length) {
+      const markdownChar = originalMarkdown[markdownIndex]
+      const cleanChar = cleanMarkdown[cleanIndex]
+      
+      if (markdownChar === cleanChar) {
+        cleanIndex++
+      }
+      markdownIndex++
+    }
+    
+    const startPos = markdownIndex
+    
+    // 找到结束位置
+    cleanIndex = selectedIndex
+    const targetCleanIndex = selectedIndex + selectedRenderedText.length
+    
+    while (cleanIndex < targetCleanIndex && markdownIndex < originalMarkdown.length) {
+      const markdownChar = originalMarkdown[markdownIndex]
+      const cleanChar = cleanMarkdown[cleanIndex]
+      
+      if (markdownChar === cleanChar) {
+        cleanIndex++
+      }
+      markdownIndex++
+    }
+    
+    const endPos = markdownIndex
+    
+    if (startPos < endPos && endPos <= originalMarkdown.length) {
+      return originalMarkdown.substring(startPos, endPos)
+    }
+  }
+  
+  // 如果所有匹配都失败，返回原始选中文本
+  return selectedRenderedText
+}
+
+// 隐藏右键菜单
+function hideContextMenu() {
+  showContextMenu.value = false
+  selectedText.value = ''
+  selectedMarkdownText.value = ''
+  selectedMessageId.value = null
+  contextMenuTarget.value = null
+}
+
+// 保存选中文本为笔记
+async function saveSelectedTextAsNote() {
+  if (!selectedText.value.trim()) {
+    showSnackbar('没有选中的文本', 'error')
+    return
+  }
+  
+  // 加载现有笔记列表
+  try {
+    existingNotes.value = await window.api.notes.getAll()
+  } catch (error) {
+    console.error('加载笔记列表失败:', error)
+    existingNotes.value = []
+  }
+  
+  // 设置笔记内容，优先使用原始markdown文本
+  const now = new Date()
+  const textToSave = selectedMarkdownText.value.trim() || selectedText.value.trim()
+  noteTitle.value = `选中文本 - ${now.toLocaleString()}`
+  noteContent.value = `**选中文本** - ${now.toLocaleString()}\n\n${textToSave}\n\n---\n\n*来源: ${conversationStore.currentConversation?.title || '聊天记录'}*`
+  saveMode.value = 'new'
+  selectedNoteId.value = ''
+  currentSaveMessage.value = null
+  
+  // 隐藏右键菜单并显示保存对话框
+  hideContextMenu()
+  saveNoteDialog.value = true
+}
+
+// 复制选中文本
+async function copySelectedText() {
+  if (!selectedText.value.trim()) {
+    showSnackbar('没有选中的文本', 'error')
+    return
+  }
+  
+  try {
+    // 优先复制原始markdown文本
+    const textToCopy = selectedMarkdownText.value.trim() || selectedText.value.trim()
+    await navigator.clipboard.writeText(textToCopy)
+    showSnackbar('文本已复制到剪贴板', 'success')
+  } catch (error) {
+    console.error('复制失败:', error)
+    showSnackbar('复制失败', 'error')
+  }
+  
+  hideContextMenu()
+}
 </script>
 
 <template>
@@ -1204,7 +1521,12 @@ function formatSearchSnippet(snippet: string, query: string) {
             </div>
             
             <!-- 普通消息内容 -->
-            <div v-if="message.content && message.role !== 'tool'" class="message-text">
+            <div 
+              v-if="message.content && message.role !== 'tool'" 
+              class="message-text"
+              @contextmenu="showContextMenuHandler"
+              @mouseup="handleTextSelection"
+            >
                 <MdPreview 
                   :id="`preview-${message.id}`" 
                   :modelValue="message.content" 
@@ -1250,6 +1572,18 @@ function formatSearchSnippet(snippet: string, query: string) {
                 >
                   <Download :size="16" />
                   <v-tooltip activator="parent" location="top">保存为Markdown</v-tooltip>
+                </v-btn>
+                
+                <v-btn
+                  icon
+                  size="x-small"
+                  variant="text"
+                  density="compact"
+                  @click="openSaveNoteDialog(message)"
+                  class="action-btn"
+                >
+                  <Edit3 :size="16" />
+                  <v-tooltip activator="parent" location="top">保存为笔记</v-tooltip>
                 </v-btn>
               </div>
             </div>
@@ -1692,6 +2026,116 @@ function formatSearchSnippet(snippet: string, query: string) {
         </v-card-text>
       </v-card>
     </v-dialog>
+
+    <!-- 保存笔记对话框 -->
+    <v-dialog v-model="saveNoteDialog" max-width="600px" persistent>
+      <v-card>
+        <v-card-title class="text-h6 d-flex align-center">
+          <Edit3 :size="24" class="mr-2" />
+          保存为笔记
+          <v-spacer></v-spacer>
+          <v-btn icon size="small" @click="closeSaveNoteDialog">
+            <X :size="20" />
+          </v-btn>
+        </v-card-title>
+        
+        <v-card-text>
+          <!-- 保存模式选择 -->
+          <v-radio-group v-model="saveMode" class="mb-4">
+            <v-radio label="快速新建一个笔记" value="new"></v-radio>
+            <v-radio label="追加到现有笔记" value="append" :disabled="existingNotes.length === 0"></v-radio>
+          </v-radio-group>
+          
+          <!-- 新建笔记模式 -->
+          <div v-if="saveMode === 'new'">
+            <v-text-field
+              v-model="noteTitle"
+              label="笔记标题"
+              variant="outlined"
+              density="compact"
+              class="mb-4"
+              required
+            ></v-text-field>
+          </div>
+          
+          <!-- 追加模式 - 选择现有笔记 -->
+          <div v-if="saveMode === 'append'">
+            <v-select
+              v-model="selectedNoteId"
+              :items="existingNotes"
+              item-title="title"
+              item-value="id"
+              label="选择要追加的笔记"
+              variant="outlined"
+              density="compact"
+              class="mb-4"
+              required
+            >
+              <template v-slot:item="{ props, item }">
+                <v-list-item v-bind="props">
+                  <v-list-item-title>{{ item.raw.title }}</v-list-item-title>
+                  <v-list-item-subtitle>{{ new Date(item.raw.updated_at).toLocaleString() }}</v-list-item-subtitle>
+                </v-list-item>
+              </template>
+            </v-select>
+          </div>
+          
+          <!-- 笔记内容预览 -->
+          <v-textarea
+            v-model="noteContent"
+            label="笔记内容"
+            variant="outlined"
+            rows="8"
+            auto-grow
+            max-rows="12"
+            readonly
+            class="mb-4"
+          ></v-textarea>
+        </v-card-text>
+        
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="closeSaveNoteDialog">取消</v-btn>
+          <v-btn 
+            color="primary" 
+            variant="elevated"
+            @click="saveNote"
+            :disabled="(saveMode === 'new' && !noteTitle.trim()) || (saveMode === 'append' && !selectedNoteId)"
+          >
+            {{ saveMode === 'new' ? '创建笔记' : '追加到笔记' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 右键菜单 -->
+    <v-menu
+      v-model="showContextMenu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+      absolute
+      offset-y
+      close-on-click
+      close-on-content-click
+      @click:outside="hideContextMenu"
+    >
+      <v-list density="compact" min-width="180">
+        <v-list-item @click="copySelectedText" density="compact">
+          <template v-slot:prepend>
+            <Copy :size="16" />
+          </template>
+          <v-list-item-title class="text-body-2">复制原始文本</v-list-item-title>
+          <v-list-item-subtitle class="text-caption">保留Markdown格式</v-list-item-subtitle>
+        </v-list-item>
+        
+        <v-list-item @click="saveSelectedTextAsNote" density="compact">
+          <template v-slot:prepend>
+            <Edit3 :size="16" />
+          </template>
+          <v-list-item-title class="text-body-2">保存为笔记</v-list-item-title>
+          <v-list-item-subtitle class="text-caption">保留Markdown格式</v-list-item-subtitle>
+        </v-list-item>
+      </v-list>
+    </v-menu>
   </div>
 </template>
 
@@ -1736,6 +2180,31 @@ function formatSearchSnippet(snippet: string, query: string) {
 .chat-container {
   overflow-x: hidden;
   max-width: 100%;
+}
+
+/* 右键菜单样式 */
+.message-text {
+  user-select: text;
+  cursor: text;
+}
+
+.message-text::selection {
+  background-color: rgba(33, 150, 243, 0.3);
+  color: inherit;
+}
+
+.message-text::-moz-selection {
+  background-color: rgba(33, 150, 243, 0.3);
+  color: inherit;
+}
+
+/* 确保 MdPreview 内容可以被选择 */
+.message-text :deep(.md-editor-preview) {
+  user-select: text;
+}
+
+.message-text :deep(.md-editor-preview *) {
+  user-select: text;
 }
 /* 工具调用展开面板样式 */
 .tool-expansion-panels {

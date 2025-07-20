@@ -66,6 +66,17 @@ const api = {
     }
   },
   
+  // 笔记相关
+  notes: {
+    getAll: () => ipcRenderer.invoke('get-all-notes'),
+    get: (id: string) => ipcRenderer.invoke('get-note', id),
+    create: (title: string, content: string) => ipcRenderer.invoke('create-note', title, content),
+    update: (id: string, title: string, content: string) => ipcRenderer.invoke('update-note', id, title, content),
+    delete: (id: string) => ipcRenderer.invoke('delete-note', id),
+    appendTo: (id: string, content: string) => ipcRenderer.invoke('append-to-note', id, content),
+    search: (query: string) => ipcRenderer.invoke('search-notes', query)
+  },
+  
   // 设置相关
   settings: {
     getAll: () => ipcRenderer.invoke('get-all-settings'),

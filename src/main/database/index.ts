@@ -154,6 +154,18 @@ function initDatabase() {
     db.exec('ALTER TABLE assistants ADD COLUMN agent_type TEXT DEFAULT "direct";');
   }
 
+  // 创建笔记表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS notes (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      tags TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
   // 创建设置表
   db.exec(`
     CREATE TABLE IF NOT EXISTS settings (

@@ -30,6 +30,11 @@ const routes = [
         path: 'models',
         name: 'Models',
         component: () => import('../views/Models.vue')
+      },
+      {
+        path: 'notes',
+        name: 'Notes',
+        component: () => import('../views/Notes.vue')
       }
     ]
   },

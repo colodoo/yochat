@@ -19,6 +19,18 @@ export function setupTray(): void {
   tray = new Tray(icon);
   tray.setToolTip('YoChat');
   
+  // 单击托盘图标显示主窗口
+  tray.on('click', () => {
+    const mainWindow = BrowserWindow.getAllWindows().find(w => !w.getTitle().includes('Mini'));
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    } else {
+      createMainWindow();
+    }
+  });
+  
   // 更新托盘菜单
   updateTrayMenu();
 }

@@ -69,6 +69,15 @@ interface API {
     onCallDone: (callback: (result: any) => void) => () => void
     onCallError: (callback: (error: any) => void) => () => void
   }
+  notes: {
+    getAll: () => Promise<any[]>
+    get: (id: string) => Promise<any>
+    create: (title: string, content: string) => Promise<string>
+    update: (id: string, title: string, content: string) => Promise<any>
+    delete: (id: string) => Promise<any>
+    appendTo: (id: string, content: string) => Promise<any>
+    search: (query: string) => Promise<any[]>
+  }
   openCodeRunner: (data: { code: string, title: string, language: string }) => void
   closeCodeRunner: () => void
   codeRunnerReady: () => void

@@ -6,7 +6,7 @@ import { useAssistantStore } from '../stores/assistant'
 import { useSettingStore } from '../stores/setting'
 import { useModelStore } from '../stores/model'
 import logoIcon from '../assets/icon.png'
-import { Menu, PanelLeftClose, Plus, Trash2, MessageCircle, Brain, Bot, Settings, Edit3, AlertTriangle } from 'lucide-vue-next'
+import { Menu, PanelLeftClose, Plus, Trash2, MessageCircle, Brain, Bot, Settings, Edit3, AlertTriangle, FileText } from 'lucide-vue-next'
 
 const router = useRouter()
 const conversationStore = useConversationStore()
@@ -449,6 +449,16 @@ const groupedConversations = computed(() => {
               >
                 <template v-slot:prepend>
                   <Bot class="mr-3" :size="16" />
+                </template>
+              </v-list-item>
+              <v-list-item
+                :prepend-icon="false"
+                title="笔记管理"
+                @click="router.push('/notes')"
+                class="sidebar-menu-item"
+              >
+                <template v-slot:prepend>
+                  <FileText class="mr-3" :size="16" />
                 </template>
               </v-list-item>
               <v-list-item

@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { conversationService, messageService, assistantService, settingService, modelService, mcpService } from './database/services';
+import { conversationService, messageService, assistantService, settingService, modelService, mcpService, noteService } from './database/services';
 import { checkpointer } from './database/index';
 import { createLogger } from './utils/logger';
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -1318,6 +1318,77 @@ export function setupIPC(): void {
         success: false,
         error: (error as Error).message || '状态更新失败'
       };
+    }
+  });
+
+  // 笔记相关
+  ipcMain.handle('get-all-notes', async () => {
+    try {
+      return noteService.getAllNotes();
+    } catch (error) {
+      ipcLogger.error('获取所有笔记失败:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('get-note', async (_, id: string) => {
+    try {
+      return noteService.getNote(id);
+    } catch (error) {
+      ipcLogger.error(`获取笔记 ${id} 失败:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('create-note', async (_, title: string, content: string) => {
+    try {
+      ipcLogger.info(`创建笔记: `, { title, content });
+      if (!title || !content) {
+        throw new Error('标题和内容不能为空');
+      }
+      return noteService.createNote({ title, content, tags: '' });
+    } catch (error) {
+      ipcLogger.error('创建笔记失败:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('update-note', async (_, id: string, title: string, content: string) => {
+    try {
+      if (!title || !content) {
+        throw new Error('标题和内容不能为空');
+      }
+      return noteService.updateNote(id, { title, content, tags: '' });
+    } catch (error) {
+      ipcLogger.error(`更新笔记 ${id} 失败:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('delete-note', async (_, id: string) => {
+    try {
+      return noteService.deleteNote(id);
+    } catch (error) {
+      ipcLogger.error(`删除笔记 ${id} 失败:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('append-to-note', async (_, id: string, content: string) => {
+    try {
+      return noteService.appendToNote(id, content);
+    } catch (error) {
+      ipcLogger.error(`追加内容到笔记 ${id} 失败:`, error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('search-notes', async (_, query: string) => {
+    try {
+      return noteService.searchNotes(query);
+    } catch (error) {
+      ipcLogger.error(`搜索笔记失败:`, error);
+      throw error;
     }
   });
 
