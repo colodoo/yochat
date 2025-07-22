@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>一款功能强大的跨平台 AI 聊天客户端，基于 Electron、Vue 3 和 TypeScript 构建。</strong>
+  <strong>一款功能强大的跨平台 AI 聊天助手。</strong>
 </p>
 
 <p align="center">

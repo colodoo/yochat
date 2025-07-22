@@ -17,7 +17,7 @@ const api = {
   // 消息相关
   messages: {
     getByConversation: (conversationId: number) => ipcRenderer.invoke('get-messages-by-conversation', conversationId),
-    add: (conversationId: number, role: string, content: string, toolCalls?: any[], toolCallId?: string) => ipcRenderer.invoke('add-message', conversationId, role, content, toolCalls, toolCallId),
+    add: (conversationId: number, role: string, content: string) => ipcRenderer.invoke('add-message', conversationId, role, content),
     deleteAll: (conversationId: number) => ipcRenderer.invoke('delete-all-messages', conversationId),
     delete: (messageId: number) => ipcRenderer.invoke('delete-message', messageId)
   },

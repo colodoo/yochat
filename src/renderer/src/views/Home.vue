@@ -5,7 +5,7 @@ import { useModelStore } from '../stores/model'
 import { useSettingStore } from '../stores/setting'
 import { useRouter } from 'vue-router'
 import { ref, computed, onMounted } from 'vue'
-import { MessageCircle, AlertCircle, Brain, Settings, Bot, Plus } from 'lucide-vue-next'
+import { AlertCircle, Brain, Settings, Bot, Plus } from 'lucide-vue-next'
 
 const assistantStore = useAssistantStore()
 const conversationStore = useConversationStore()

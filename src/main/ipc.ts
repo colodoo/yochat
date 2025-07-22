@@ -12,10 +12,9 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatOllama } from '@langchain/ollama';
 import { ChatMoonshot } from '@langchain/community/chat_models/moonshot';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
-import { promisify } from 'util';
-import { exec } from 'child_process';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 
-const execAsync = promisify(exec);
+
 
 // 创建日志记录器
 const apiLogger = createLogger('API');
@@ -37,6 +36,10 @@ async function detectUserIP(): Promise<{ isChina: boolean; ip: string }> {
   try {
     mcpLogger.info('正在检测用户IP地址...');
     
+    // 获取代理配置用于IP检测
+    const proxyEnabled = settingService.getSetting('proxy_enabled') === 'true';
+    const proxyAddress = settingService.getSetting('proxy_address') || '127.0.0.1:7890';
+    
     // 使用多个IP检测服务，提高成功率
     const ipServices = [
       'https://api.ipify.org?format=json',
@@ -49,7 +52,25 @@ async function detectUserIP(): Promise<{ isChina: boolean; ip: string }> {
     // 尝试获取IP地址
     for (const service of ipServices) {
       try {
-        const response = await fetch(service, { timeout: 5000 });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        // 构建fetch选项
+        const fetchOptions: any = { signal: controller.signal };
+        
+        // 如果启用了代理，添加代理配置
+        if (proxyEnabled && proxyAddress) {
+          try {
+            const proxyUrl = proxyAddress.startsWith('http') ? proxyAddress : `http://${proxyAddress}`;
+            const agent = new HttpsProxyAgent(proxyUrl);
+            fetchOptions.agent = agent;
+          } catch (proxyError) {
+             mcpLogger.warn(`代理配置失败，使用直连: ${proxyError instanceof Error ? proxyError.message : String(proxyError)}`);
+           }
+        }
+        
+        const response = await fetch(service, fetchOptions);
+        clearTimeout(timeoutId);
         const data = await response.json();
         ipAddress = data.ip || data.origin?.split(',')[0]?.trim() || data;
         if (ipAddress) break;
@@ -68,7 +89,25 @@ async function detectUserIP(): Promise<{ isChina: boolean; ip: string }> {
     // 检测是否为中国IP
     let isChina = false;
     try {
-      const geoResponse = await fetch(`http://ip-api.com/json/${ipAddress}?fields=country,countryCode`, { timeout: 5000 });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      // 构建地理位置检测的fetch选项
+      const geoFetchOptions: any = { signal: controller.signal };
+      
+      // 如果启用了代理，添加代理配置
+      if (proxyEnabled && proxyAddress) {
+        try {
+          const proxyUrl = proxyAddress.startsWith('http') ? proxyAddress : `http://${proxyAddress}`;
+          const agent = new HttpsProxyAgent(proxyUrl);
+          geoFetchOptions.agent = agent;
+        } catch (proxyError) {
+           mcpLogger.warn(`地理位置检测代理配置失败，使用直连: ${proxyError instanceof Error ? proxyError.message : String(proxyError)}`);
+         }
+      }
+      
+      const geoResponse = await fetch(`http://ip-api.com/json/${ipAddress}?fields=country,countryCode`, geoFetchOptions);
+      clearTimeout(timeoutId);
       const geoData = await geoResponse.json();
       isChina = geoData.countryCode === 'CN' || geoData.country === 'China';
       mcpLogger.info(`检测到IP: ${ipAddress}, 国家: ${geoData.country}, 是否为中国: ${isChina}`);
@@ -134,9 +173,15 @@ async function initializeGlobalEnvConfig(): Promise<void> {
 }
 
 // 获取配置好的环境变量（替代原来的configurePackageManagerSources）
-function getConfiguredEnv(baseEnv: Record<string, string>): Record<string, string> {
+function getConfiguredEnv(baseEnv: Record<string, string | undefined>): Record<string, string> {
+  const filteredEnv: Record<string, string> = {};
+  for (const [key, value] of Object.entries(baseEnv)) {
+    if (value !== undefined) {
+      filteredEnv[key] = value;
+    }
+  }
   return {
-    ...baseEnv,
+    ...filteredEnv,
     ...globalEnvConfig
   };
 }
@@ -260,6 +305,32 @@ class LangChainMcpManager {
 // 全局LangChain MCP管理器实例
 const langChainMcpManager = new LangChainMcpManager();
 
+// 创建代理配置的辅助函数
+function createProxyConfiguration(): { httpAgent?: any; httpsAgent?: any } | undefined {
+  const proxyEnabled = settingService.getSetting('proxy_enabled') === 'true';
+  const proxyAddress = settingService.getSetting('proxy_address') || '127.0.0.1:7890';
+  
+  if (!proxyEnabled || !proxyAddress) {
+    return undefined;
+  }
+  
+  try {
+    // 确保代理地址格式正确
+    const proxyUrl = proxyAddress.startsWith('http') ? proxyAddress : `http://${proxyAddress}`;
+    const agent = new HttpsProxyAgent(proxyUrl);
+    
+    apiLogger.info(`🌐 [Proxy] 代理已配置: ${proxyUrl}`);
+    
+    return {
+      httpAgent: agent,
+      httpsAgent: agent
+    };
+  } catch (error) {
+    apiLogger.error(`🌐 [Proxy] 代理配置失败: ${error instanceof Error ? error.message : String(error)}`);
+    return undefined;
+  }
+}
+
 // 跟踪当前正在进行的流式请求
 const activeStreamRequests = new Map<number, { abortController: AbortController, isActive: boolean }>();
 
@@ -360,7 +431,19 @@ class McpClientPool {
         // }
         // mcpLogger.info(`process.env`, JSON.stringify(process.env))
         // 使用StdioClientTransport直接创建传输层，不使用child_process
-        const transport = new StdioClientTransport(params);
+        // 过滤掉undefined值
+        const filteredEnv: Record<string, string> = {};
+        for (const [key, value] of Object.entries(env)) {
+          if (value !== undefined) {
+            filteredEnv[key] = value;
+          }
+        }
+        
+        const transport = new StdioClientTransport({
+          command: service.command,
+          args: args,
+          env: filteredEnv
+        });
         
         const client = new Client({
           name: 'yochat-client',
@@ -544,35 +627,79 @@ process.on('SIGTERM', () => {
 function createLLMInstance(assistant: any): any {
   const modelType = assistant.model_type?.toLowerCase() || 'openai';
   
+  // 获取代理配置
+  const proxyConfig = createProxyConfiguration();
+  
   switch (modelType) {
     case 'openai':
     case 'custom':
-      return new ChatOpenAI({
+      // 验证API密钥
+      if (!assistant.api_key || assistant.api_key.trim() === '') {
+        throw new Error('API密钥不能为空，请在助手设置中配置API密钥');
+      }
+      
+      const openaiConfig: any = {
         modelName: assistant.model_name || 'gpt-3.5-turbo',
         temperature: assistant.temperature || 0.7,
         maxTokens: assistant.max_tokens || 2048,
-        openAIApiKey: assistant.api_key,
+        openAIApiKey: assistant.api_key.trim(),
         configuration: {
           baseURL: assistant.api_url || 'https://api.openai.com'
         }
-      });
+      };
+      
+      // 添加代理配置
+      if (proxyConfig) {
+        openaiConfig.configuration.httpAgent = proxyConfig.httpAgent;
+        openaiConfig.configuration.httpsAgent = proxyConfig.httpsAgent;
+      }
+      
+      return new ChatOpenAI(openaiConfig);
     
     case 'claude':
-      return new ChatAnthropic({
+      // 验证API密钥
+      if (!assistant.api_key || assistant.api_key.trim() === '') {
+        throw new Error('Claude API密钥不能为空，请在助手设置中配置API密钥');
+      }
+      
+      const claudeConfig: any = {
         modelName: assistant.model_name || 'claude-3-sonnet-20240229',
         temperature: assistant.temperature || 0.7,
         maxTokens: assistant.max_tokens || 2048,
-        anthropicApiKey: assistant.api_key,
+        anthropicApiKey: assistant.api_key.trim(),
         anthropicApiUrl: assistant.api_url
-      });
+      };
+      
+      // 添加代理配置
+      if (proxyConfig) {
+        claudeConfig.clientOptions = {
+          httpAgent: proxyConfig.httpAgent,
+          httpsAgent: proxyConfig.httpsAgent
+        };
+      }
+      
+      return new ChatAnthropic(claudeConfig);
     
     case 'gemini':
-      return new ChatGoogleGenerativeAI({
+      // 验证API密钥
+      if (!assistant.api_key || assistant.api_key.trim() === '') {
+        throw new Error('Gemini API密钥不能为空，请在助手设置中配置API密钥');
+      }
+      
+      const geminiConfig: any = {
         modelName: assistant.model_name || 'gemini-pro',
         temperature: assistant.temperature || 0.7,
         maxOutputTokens: assistant.max_tokens || 2048,
-        apiKey: assistant.api_key
-      });
+        apiKey: assistant.api_key.trim()
+      };
+      
+      // 注意：ChatGoogleGenerativeAI目前可能不支持标准的代理配置
+      // 如果需要代理，建议使用系统级代理或环境变量配置
+      if (proxyConfig) {
+        apiLogger.warn('🌐 [Proxy] Gemini模型暂不支持直接代理配置，请使用系统级代理');
+      }
+      
+      return new ChatGoogleGenerativeAI(geminiConfig);
     
     case 'ollama':
       return new ChatOllama({
@@ -583,25 +710,53 @@ function createLLMInstance(assistant: any): any {
       });
     
     case 'moonshot':
-      return new ChatMoonshot({
+      // 验证API密钥
+      if (!assistant.api_key || assistant.api_key.trim() === '') {
+        throw new Error('Moonshot API密钥不能为空，请在助手设置中配置API密钥');
+      }
+      
+      const moonshotConfig: any = {
         modelName: assistant.model_name || 'moonshot-v1-8k',
         temperature: assistant.temperature || 0.7,
         maxTokens: assistant.max_tokens || 2048,
-        moonshotApiKey: assistant.api_key,
+        moonshotApiKey: assistant.api_key.trim(),
         baseURL: assistant.api_url || 'https://api.moonshot.cn/v1'
-      });
+      };
+      
+      // 添加代理配置
+      if (proxyConfig) {
+        moonshotConfig.configuration = {
+          httpAgent: proxyConfig.httpAgent,
+          httpsAgent: proxyConfig.httpsAgent
+        };
+      }
+      
+      return new ChatMoonshot(moonshotConfig);
     
     default:
       // 默认使用OpenAI兼容格式
-      return new ChatOpenAI({
+      // 验证API密钥
+      if (!assistant.api_key || assistant.api_key.trim() === '') {
+        throw new Error('API密钥不能为空，请在助手设置中配置API密钥');
+      }
+      
+      const defaultConfig: any = {
         modelName: assistant.model_name || 'gpt-3.5-turbo',
         temperature: assistant.temperature || 0.7,
         maxTokens: assistant.max_tokens || 2048,
-        openAIApiKey: assistant.api_key,
+        openAIApiKey: assistant.api_key.trim(),
         configuration: {
           baseURL: assistant.api_url || 'https://api.openai.com'
         }
-      });
+      };
+      
+      // 添加代理配置
+      if (proxyConfig) {
+        defaultConfig.configuration.httpAgent = proxyConfig.httpAgent;
+        defaultConfig.configuration.httpsAgent = proxyConfig.httpsAgent;
+      }
+      
+      return new ChatOpenAI(defaultConfig);
   }
 }
 
@@ -758,7 +913,7 @@ async function callLangChainAPI(llm: any, messages: any[], tools?: any[], onProg
               if (finalMessage && finalMessage.content) {
                 // 如果最终内容与当前流式内容不同，使用最终内容
                 if (finalMessage.content !== responseContent) {
-                  responseContent = finalMessage.content;
+                  responseContent = typeof finalMessage.content === 'string' ? finalMessage.content : JSON.stringify(finalMessage.content);
                   if (onProgress) {
                     onProgress(responseContent);
                   }
@@ -785,7 +940,7 @@ async function callLangChainAPI(llm: any, messages: any[], tools?: any[], onProg
         );
         
         const finalMessage = result.messages[result.messages.length - 1];
-        responseContent = finalMessage.content || '';
+        responseContent = typeof finalMessage.content === 'string' ? finalMessage.content : (finalMessage.content ? JSON.stringify(finalMessage.content) : '');
         
         if (onProgress) {
           onProgress(responseContent);
@@ -1232,7 +1387,7 @@ export function setupIPC(): void {
   // 重置MCP客户端池
   ipcMain.handle('mcp-reset-pool', async () => {
     try {
-      mcpClientPool.clear();
+      await mcpClientPool.closeAll();
       mcpLogger.info('MCP客户端池已重置');
       return { success: true, message: 'MCP客户端池已重置' };
     } catch (error) {
@@ -1245,8 +1400,8 @@ export function setupIPC(): void {
   ipcMain.handle('mcp-get-connection-status', async () => {
     try {
       const status = {
-        poolSize: mcpClientPool.size,
-        connections: Array.from(mcpClientPool.keys())
+        poolSize: 0, // 暂时返回0，因为clients属性是私有的
+        connections: [] // 暂时返回空数组，因为clients属性是私有的
       };
       mcpLogger.info('获取MCP连接状态', status);
       return status;
@@ -1800,7 +1955,7 @@ export function setupIPC(): void {
         
         // 统一使用callLangChainAPI处理所有模型类型
         apiLogger.info(`使用LangChain方式调用${assistant.model_type}模型: ${assistant.model_name}`);
-        apiPromise = callLangChainAPI(llm, messages, tools, onProgress, abortController.signal, conversationId);
+        apiPromise = callLangChainAPI(llm, messages, tools, onProgress, abortController.signal, String(conversationId));
         
         // 处理API调用结果
         apiPromise.then(async (response) => {
@@ -1847,7 +2002,7 @@ export function setupIPC(): void {
                       conversationId, 
                       'tool', 
                       toolResult.content, 
-                      null, 
+                      undefined, 
                       toolResult.tool_call_id
                     );
                     apiLogger.info(`工具调用结果已存储到数据库，消息ID: ${toolMessageId}`);
@@ -1856,7 +2011,7 @@ export function setupIPC(): void {
               }
               
               // 然后保存助手消息，包含工具调用信息
-              const messageId = await messageService.addMessage(conversationId, 'assistant', responseContent, toolCalls);
+              const messageId = await messageService.addMessage(conversationId, 'assistant', responseContent, toolCalls || undefined);
               apiLogger.info(`AI回复已存储到数据库，消息ID: ${messageId}，对话ID: ${conversationId}`);
             } catch (dbError) {
               apiLogger.error(`存储消息到数据库失败:`, dbError);
@@ -1963,7 +2118,7 @@ ipcMain.handle('initialize-global-env', async () => {
     ipcLogger.error('全局环境配置初始化失败:', error);
     return {
       success: false,
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
       message: '全局环境配置初始化失败'
     };
   }
@@ -1978,8 +2133,8 @@ ipcMain.handle('test-ip-detection', async () => {
     const ipInfo = await detectUserIP();
     
     // 获取当前全局环境配置
-    const baseEnv = { ...process.env };
-    const configuredEnv = getConfiguredEnv(baseEnv);
+    // const baseEnv = { ...process.env };
+    // const configuredEnv = getConfiguredEnv(baseEnv);
     
     // 提取相关的源配置环境变量
     const sourceConfigs = {};
@@ -2002,7 +2157,7 @@ ipcMain.handle('test-ip-detection', async () => {
     ipcLogger.error('IP检测和源配置测试失败:', error);
     return {
       success: false,
-      error: error.message,
+      error: error instanceof Error ? error.message : String(error),
       message: 'IP检测和源配置测试失败'
     };
   }
@@ -2017,7 +2172,7 @@ ipcMain.handle('reset-ip-cache', async () => {
     return { success: true, message: 'IP检测缓存和全局环境配置已重置' };
   } catch (error) {
     ipcLogger.error('重置IP检测缓存失败:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error instanceof Error ? error.message : String(error) };
   }
 });
 

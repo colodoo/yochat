@@ -43,8 +43,10 @@ interface API {
   }
   ai: {
     callApi: (assistantId: string, messages: any[], conversationId?: number, temperature?: number, maxTokens?: number, mcpServices?: any[]) => Promise<string>
+    stopGeneration: (conversationId: number) => Promise<void>
     onStreamResponse: (callback: (text: string) => void) => () => void
     onStreamDone: (callback: () => void) => () => void
+    onStreamCancelled: (callback: (data: any) => void) => () => void
   }
   navigation: {
     onNavigateTo: (callback: (route: string) => void) => () => void
@@ -81,6 +83,7 @@ interface API {
   openCodeRunner: (data: { code: string, title: string, language: string }) => void
   closeCodeRunner: () => void
   codeRunnerReady: () => void
+  invoke: (channel: string, ...args: any[]) => Promise<any>
 }
 
 declare global {

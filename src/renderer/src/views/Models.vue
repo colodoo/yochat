@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useModelStore } from '../stores/model'
 import { useSettingStore } from '../stores/setting'
-import { CheckCircle, AlertCircle, List, Bot, Cloud, Brain, Search, Settings, Plus, Import, Download, Box, Edit3, Trash2 } from 'lucide-vue-next'
+import { CheckCircle, AlertCircle, List, Bot, Cloud, Brain, Search, Settings, Plus, Import, Download, Box, Trash2 } from 'lucide-vue-next'
 
 const modelStore = useModelStore()
 const settingStore = useSettingStore()
@@ -317,7 +317,7 @@ const importConfig = () => {
   input.accept = '.json'
   
   input.onchange = async (event) => {
-    const file = event.target.files[0]
+    const file = (event.target as HTMLInputElement).files?.[0]
     if (!file) return
     
     try {

@@ -6,7 +6,7 @@ import { useAssistantStore } from '../stores/assistant'
 import { useSettingStore } from '../stores/setting'
 import { useModelStore } from '../stores/model'
 import logoIcon from '../assets/icon.png'
-import { Menu, PanelLeftClose, Plus, Trash2, MessageCircle, Brain, Bot, Settings, Edit3, AlertTriangle, FileText } from 'lucide-vue-next'
+import { Menu, PanelLeftClose, Plus, Trash2, MessageCircle, Brain, Bot, Settings, AlertTriangle, FileText } from 'lucide-vue-next'
 
 const router = useRouter()
 const conversationStore = useConversationStore()
@@ -370,7 +370,6 @@ const groupedConversations = computed(() => {
             block 
             variant="outlined"
             @click="newChatDialog = true" 
-            :prepend-icon="false" 
             class="new-chat-btn"
           >
             <Plus class="mr-2" :size="20" />
@@ -414,7 +413,6 @@ const groupedConversations = computed(() => {
                   :active="conversationStore.currentConversationId === conversation.id"
                   @click="selectConversation(conversation.id)"
                   @contextmenu="showContextMenu($event, conversation)"
-                  :prepend-icon="false"
                   class="text-body-2 conversation-item"
                 >
                   <template v-slot:prepend>
@@ -432,7 +430,6 @@ const groupedConversations = computed(() => {
           <v-divider></v-divider>
           <v-list>
               <v-list-item
-                :prepend-icon="false"
                 title="模型管理"
                 @click="router.push('/models')"
                 class="sidebar-menu-item"
@@ -442,7 +439,6 @@ const groupedConversations = computed(() => {
                 </template>
               </v-list-item>
               <v-list-item
-                :prepend-icon="false"
                 title="助手管理"
                 @click="router.push('/assistants')"
                 class="sidebar-menu-item"
@@ -452,7 +448,6 @@ const groupedConversations = computed(() => {
                 </template>
               </v-list-item>
               <v-list-item
-                :prepend-icon="false"
                 title="笔记管理"
                 @click="router.push('/notes')"
                 class="sidebar-menu-item"
@@ -462,7 +457,6 @@ const groupedConversations = computed(() => {
                 </template>
               </v-list-item>
               <v-list-item
-                :prepend-icon="false"
                 title="设置"
                 @click="router.push('/settings')"
                 class="sidebar-menu-item"

@@ -249,13 +249,13 @@ ipcMain.on('open-code-runner', (_, data) => {
   if (!codeRunnerWindow) {
     createCodeRunnerWindow()
     // 等待窗口创建完成后发送代码
-    codeRunnerWindow?.webContents.once('did-finish-load', () => {
-      codeRunnerWindow?.webContents.postMessage('RUN_CODE', data)
+    codeRunnerWindow!.webContents.once('did-finish-load', () => {
+      codeRunnerWindow?.webContents.send('RUN_CODE', data)
     })
   } else {
     codeRunnerWindow.show()
     codeRunnerWindow.focus()
-    codeRunnerWindow.webContents.postMessage('RUN_CODE', data)
+    codeRunnerWindow.webContents.send('RUN_CODE', data)
   }
 })
 

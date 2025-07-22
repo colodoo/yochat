@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { FileText, Plus, Edit, Trash2, Search, Save, X } from 'lucide-vue-next'
-import { MdEditor, MdPreview } from 'md-editor-v3'
+import { FileText, Plus, Trash2 } from 'lucide-vue-next'
+import { MdEditor } from 'md-editor-v3'
 import 'md-editor-v3/lib/style.css'
 
 interface Note {

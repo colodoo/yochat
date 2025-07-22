@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useMcpStore } from '../../stores/mcp'
-import { Puzzle, Plus, Import, Terminal, Globe, Link, Edit3, Trash2 } from 'lucide-vue-next'
+import { Puzzle, Plus, Import, Terminal, Globe, Link, Trash2, Edit3 } from 'lucide-vue-next'
 
 const mcpStore = useMcpStore()
 const loading = ref(false)
@@ -367,11 +367,11 @@ async function testMcpConnection(serviceId: string) {
                   </v-chip>
                   <v-spacer></v-spacer>
                   <v-chip
-                    :color="getStatusColor(service.status)"
+                    :color="getStatusColor(service.status || 'unknown')"
                     size="small"
                     variant="outlined"
                   >
-                    {{ getStatusText(service.status) }}
+                    {{ getStatusText(service.status || 'unknown') }}
                   </v-chip>
                 </v-card-title>
                 

@@ -9,9 +9,9 @@ import { useMcpStore } from '../stores/mcp'
 import { MdPreview, config } from 'md-editor-v3'
 import 'md-editor-v3/lib/preview.css'
 import { 
-  Bot, Search, MoreVertical, Edit3, Settings, Trash2, MessageCircle, 
+  Bot, Search, MoreVertical, Settings, Trash2, MessageCircle, 
   User, AlertCircle, Wrench, Zap, CheckCircle, Copy, Download, 
-  Globe, X, Send, Square, ChevronUp, ChevronDown, SearchX, 
+  Globe, X, ChevronUp, ChevronDown, SearchX, 
   Paperclip, Hash, ArrowUp 
 } from 'lucide-vue-next'
 
@@ -89,7 +89,7 @@ const tempSelectedMcpServices = ref<string[]>([])
 
 // md-preview相关
 config({
-  markdownItPlugins(plugins, { editorId }) {
+  markdownItPlugins(plugins, { editorId: _editorId }) {
     return plugins.map((item) => {
       switch (item.type) {
         case 'code': {
@@ -192,11 +192,7 @@ onMounted(async () => {
   // 注册流式响应事件
   const removeStreamListener = window.api.ai.onStreamResponse((data) => {
     // 检查是否是当前对话的事件
-    if (data.conversationId && data.conversationId !== conversationId.value) {
-      return; // 不是当前对话的事件，忽略
-    }
-    
-    const text = data.text || data; // 兼容旧格式
+    const text = typeof data === 'string' ? data : ((data as any)?.text || ''); // 兼容旧格式
     
     // 更新流式响应内容
     streamingResponse.value = text
@@ -218,11 +214,7 @@ onMounted(async () => {
   })
   
   // 注册流式响应完成事件
-  const removeDoneListener = window.api.ai.onStreamDone(async (data) => {
-    // 检查是否是当前对话的事件
-    if (data && data.conversationId && data.conversationId !== conversationId.value) {
-      return; // 不是当前对话的事件，忽略
-    }
+  const removeDoneListener = window.api.ai.onStreamDone(async () => {
     
     // 流式响应完成，重新加载对话历史以显示完整的工具调用信息
     if (isStreaming.value) {
@@ -292,7 +284,7 @@ onMounted(async () => {
   document.addEventListener('click', handleCodeToolClick)
   
   // 添加全局点击事件监听器来隐藏右键菜单
-  const handleGlobalClick = (event: MouseEvent) => {
+  const handleGlobalClick = (_event: MouseEvent) => {
     if (showContextMenu.value) {
       hideContextMenu()
     }
@@ -702,39 +694,39 @@ function deleteMessage(messageId: number) {
 }
 
 // 强制停止对话生成
-async function stopGeneration() {
-  if (isStreaming.value) {
-    try {
-      // 通知后端停止生成
-      await window.api.ai.stopGeneration(conversationId.value)
-      
-      // 更新前端状态
-      isStreaming.value = false
-      sending.value = false
-      
-      // 移除临时消息
-      if (currentStreamingMessageId.value) {
-        const tempMessageIndex = conversationStore.messages.findIndex(
-          msg => msg.id.toString() === currentStreamingMessageId.value
-        )
-        if (tempMessageIndex !== -1) {
-          conversationStore.messages.splice(tempMessageIndex, 1)
-        }
-      }
-      
-      // 添加一个系统消息，表示对话被用户中断
-      await conversationStore.addMessage('system', '⏹️ 对话生成已被用户中断')
-      
-      currentStreamingMessageId.value = null
-      streamingResponse.value = ''
-      
-      showSnackbar('已停止生成', 'info')
-    } catch (error) {
-      console.error('停止生成失败:', error)
-      showSnackbar('停止生成失败', 'error')
-    }
-  }
-}
+// async function stopGeneration() {
+//   if (isStreaming.value) {
+//     try {
+//       // 通知后端停止生成
+//       await window.api.ai.stopGeneration(conversationId.value)
+//       
+//       // 更新前端状态
+//       isStreaming.value = false
+//       sending.value = false
+//       
+//       // 移除临时消息
+//       if (currentStreamingMessageId.value) {
+//         const tempMessageIndex = conversationStore.messages.findIndex(
+//           msg => msg.id.toString() === currentStreamingMessageId.value
+//         )
+//         if (tempMessageIndex !== -1) {
+//           conversationStore.messages.splice(tempMessageIndex, 1)
+//         }
+//       }
+//       
+//       // 添加一个系统消息，表示对话被用户中断
+//       await conversationStore.addMessage('system', '⏹️ 对话生成已被用户中断')
+//       
+//       currentStreamingMessageId.value = null
+//       streamingResponse.value = ''
+//       
+//       showSnackbar('已停止生成', 'info')
+//     } catch (error) {
+//       console.error('停止生成失败:', error)
+//       showSnackbar('停止生成失败', 'error')
+//     }
+//   }
+// }
 
 // 打开MCP服务选择对话框
 function openMcpServicesDialog() {
@@ -879,20 +871,20 @@ async function saveMessageAsMarkdown(message: any) {
 }
 
 // 初始化工具tab状态
-function initToolTabState(messageId: string | number) {
-  const key = messageId.toString()
-  if (!toolTabStates.value[key]) {
-    // 默认显示调用参数tab，如果没有调用参数则显示结果tab
-    const message = conversationStore.messages.find(m => m.id.toString() === key)
-    if (message?.tool_calls && message.tool_calls.length > 0) {
-      toolTabStates.value[key] = 'calls'
-    } else if (message?.tool_results && message.tool_results.length > 0) {
-      toolTabStates.value[key] = 'results'
-    } else {
-      toolTabStates.value[key] = 'calls'
-    }
-  }
-}
+// function initToolTabState(messageId: string | number) {
+//   const key = messageId.toString()
+//   if (!toolTabStates.value[key]) {
+//     // 默认显示调用参数tab，如果没有调用参数则显示结果tab
+//     const message = conversationStore.messages.find(m => m.id.toString() === key)
+//     if (message?.tool_calls && message.tool_calls.length > 0) {
+//       toolTabStates.value[key] = 'calls'
+//     } else if (message?.tool_results && message.tool_results.length > 0) {
+//       toolTabStates.value[key] = 'results'
+//     } else {
+//       toolTabStates.value[key] = 'calls'
+//     }
+//   }
+// }
 
 // 搜索功能相关方法
 // 打开搜索对话框
@@ -1170,7 +1162,7 @@ function showContextMenuHandler(event: MouseEvent) {
   
   contextMenuX.value = event.clientX
   contextMenuY.value = event.clientY
-  contextMenuTarget.value = event.target
+  contextMenuTarget.value = null
   showContextMenu.value = true
 }
 
@@ -1203,8 +1195,7 @@ function getSelectedMarkdownText(originalMarkdown: string, selectedRenderedText:
   if (selectedIndex !== -1) {
     // 找到匹配位置，尝试在原始markdown中找到对应的区域
     // 这是一个简化的实现，可能需要更复杂的逻辑来处理所有情况
-    const beforeText = cleanMarkdown.substring(0, selectedIndex)
-    const afterText = cleanMarkdown.substring(selectedIndex + selectedRenderedText.length)
+    // const beforeText = cleanMarkdown.substring(0, selectedIndex)
     
     // 计算在原始markdown中的大致位置
     let markdownIndex = 0
@@ -1530,7 +1521,7 @@ async function copySelectedText() {
                 <MdPreview 
                   :id="`preview-${message.id}`" 
                   :modelValue="message.content" 
-                  :theme="settingStore.getSetting('theme', 'light')"
+                  :theme="settingStore.getSetting('theme', 'light') as 'light' | 'dark'"
                   previewTheme="github"
                 />
             </div>

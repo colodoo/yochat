@@ -103,11 +103,11 @@ export const useConversationStore = defineStore('conversation', () => {
   }
 
   // 添加消息
-  async function addMessage(role: string, content: string, toolCalls?: any[], toolCallId?: string) {
+  async function addMessage(role: string, content: string) {
     if (!currentConversationId.value) return null
 
     try {
-      const id = await window.api.messages.add(currentConversationId.value, role, content, toolCalls, toolCallId)
+      const id = await window.api.messages.add(currentConversationId.value, role, content)
       await loadMessages(currentConversationId.value)
       return id
     } catch (error) {
